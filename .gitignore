@@ -1,0 +1,25 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Local environment files
+.env
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Project outputs
+outputs/
+
+# OS
+.DS_Store
+
+# Editor settings
+.vscode/
+
+# Other files to ignore
+.scratch/

@@ -1,0 +1,32 @@
+global:
+  seed: 0
+  d: 32
+  k: 10
+  seq_length: 100
+  test_set_size: 1024
+  track_set_size: 1024
+  track_source: test
+  output_dir: outputs/
+  data_generator:
+    _target_: utils.data_generator.RademacherInputGenerator
+  # data_generator:
+  #   _target_: utils.data_generator.MixtureInputGenerator
+  #   num_mix: 8
+  #   sigma: 0.5
+
+experiment:
+  type: cdf_quantile
+  name: sup_cdf_quantile
+  enabled: true
+  seed: 0
+  num_models: 10
+  partial_steps: 500
+  batch_size: 256
+  optimizer:
+    _target_: torch.optim.Adagrad
+    _partial_: true
+    lr: 1.0
+  cdf_samples: 16384
+  cdf_plot_file: cdf.pdf
+  quantile_plot_file: quantile.pdf
+  alpha_tail_plot_file: alpha_tail.pdf

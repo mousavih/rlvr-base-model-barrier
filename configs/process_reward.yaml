@@ -1,0 +1,57 @@
+global:
+  seed: 0
+  d: 32
+  k: 32
+  seq_length: 128
+  test_set_size: 1024
+  track_set_size: 1024
+  track_source: test
+  output_dir: outputs/
+  # data_generator:
+  #   _target_: utils.data_generator.RademacherInputGenerator
+  data_generator:
+    _target_: utils.data_generator.MixtureInputGenerator
+    num_mix: 32
+    sigma: 0.01
+
+experiment:
+  type: process_reward
+  name: sup_then_pg_process
+  enabled: true
+  seed: 0
+  supervised:
+    steps: 1500
+    batch_size: 256
+    optimizer:
+      _target_: torch.optim.SGD
+      _partial_: true
+      lr: 0.1
+    test_every: 50
+  pg:
+    steps: 1500
+    batch_size: 256
+    optimizer:
+      _target_: torch.optim.SGD
+      _partial_: true
+      lr: 0.1
+    test_every: 50
+    track_every: 10
+    baseline: false
+    # behavior:
+    #   _target_: utils.behavior_policy.TeacherForcingBehavior
+    # behavior:
+    #   _target_: utils.behavior_policy.OnPolicyBehavior
+    # behavior:
+    #   _target_: utils.behavior_policy.BoMProcessPolicy
+    #   m: 10
+    #   base_policy:
+    #     _target_: utils.behavior_policy.EpsilonMixtureBehavior
+    #     k: ${global.k}
+    #     epsilon: 0.5
+    behavior:
+      _target_: utils.behavior_policy.EpsilonMixtureBehavior
+      k: ${global.k}
+      epsilon: 0.5
+  track_initial_quantiles: 15
+  likelihood_plot_file: likelihood_vs_iters_process.pdf
+  expected_error_plot_file: expected_error_vs_iters_process.pdf
