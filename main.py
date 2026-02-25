@@ -13,6 +13,7 @@ from utils.experiments import (
     run_cdf_quantile_experiment,
     run_outcome_reward_experiment,
     run_process_reward_experiment,
+    run_threshold_track_experiment,
 )
 
 
@@ -95,6 +96,21 @@ def main():
             device=device,
             test_set_size=global_cfg.test_set_size,
             output_dir=output_dir,
+            data_generator=data_generator,
+        )
+    elif exp_type == "threshold_track":
+        print(f"Running threshold-track experiment: {exp.name}")
+        run_threshold_track_experiment(
+            exp=exp,
+            d=global_cfg.d,
+            k=global_cfg.k,
+            seq_length=global_cfg.seq_length,
+            gt=gt,
+            device=device,
+            test_set_size=global_cfg.test_set_size,
+            track_set_size=global_cfg.track_set_size,
+            output_dir=output_dir,
+            track_source=global_cfg.track_source,
             data_generator=data_generator,
         )
     else:

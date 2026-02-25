@@ -186,6 +186,37 @@ def plot_likelihood_over_time(
     plt.close(fig)
 
 
+def plot_average_likelihood_over_time(
+    likelihood_history,
+    filename="average_likelihood_vs_iters.pdf",
+    track_every=10,
+):
+    """Plot the mean tracked likelihood across samples over PG steps."""
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+
+    mpl.rcParams["font.family"] = "Times New Roman"
+    mpl.rcParams["text.usetex"] = True
+    plt.rcParams["text.latex.preamble"] = r"""
+    \usepackage{bm}
+    \usepackage{amsmath}
+    \usepackage{amssymb}
+    """
+
+    history = torch.stack(likelihood_history, dim=0).detach().cpu()
+    mean_likelihood = history.mean(dim=1)
+    steps = torch.arange(history.shape[0]) * track_every
+
+    fig, ax = plt.subplots(figsize=(7.6, 6))
+    ax.plot(steps.numpy(), mean_likelihood.numpy(), linewidth=2.5)
+    ax.set_xlabel(r"PG Step", fontsize=24)
+    ax.set_ylabel(r"Average Likelihood - $\mathbb{E}[p_{\bm{w}_t}(\bm{y}^*|\bm{x})]$", fontsize=22)
+    ax.tick_params(axis="both", labelsize=20)
+    ax.grid(True)
+    fig.savefig(filename, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_multi_likelihoods_over_time(likelihood_histories, filename="likelihood_vs_iters.pdf", titles=None):
     """Plot likelihood over time for one or more runs side by side.
 
@@ -273,5 +304,41 @@ def plot_expected_error_over_time(pg_errors, filename="expected_error_vs_iters.p
     ax.set_ylabel(r"Expected Error - $\mathbb{P}[\bm{y} \neq \bm{y}^*]$", fontsize=24)
     ax.tick_params(axis="both", labelsize=20)
     ax.grid(True)
+    fig.savefig(filename, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_likelihood_histogram(
+    likelihoods,
+    filename="track_set_likelihood_histogram.pdf",
+    bins=80,
+):
+    """Plot a histogram of sequence likelihoods."""
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+
+    mpl.rcParams["font.family"] = "Times New Roman"
+    mpl.rcParams["text.usetex"] = True
+    plt.rcParams["text.latex.preamble"] = r"""
+    \usepackage{bm}
+    \usepackage{amsmath}
+    \usepackage{amssymb}
+    """
+
+    likelihoods = torch.as_tensor(likelihoods, dtype=torch.float32).detach().cpu().numpy()
+
+    fig, ax = plt.subplots(figsize=(7.6, 6))
+    ax.hist(
+        likelihoods,
+        bins=max(10, int(bins)),
+        color="#1f77b4",
+        alpha=0.85,
+        edgecolor="black",
+        linewidth=0.5,
+    )
+    ax.set_xlabel(r"Likelihood - $q(\bm{y}^*|\bm{x})$", fontsize=24)
+    ax.set_ylabel(r"Count", fontsize=24)
+    ax.tick_params(axis="both", labelsize=20)
+    ax.grid(True, alpha=0.3)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)

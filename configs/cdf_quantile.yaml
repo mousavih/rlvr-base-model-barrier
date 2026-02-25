@@ -27,6 +27,6 @@ experiment:
     _partial_: true
     lr: 1.0
   cdf_samples: 16384
-  cdf_plot_file: cdf.pdf
-  quantile_plot_file: quantile.pdf
-  alpha_tail_plot_file: alpha_tail.pdf
+  cdf_plot_file: cdf_curve.pdf
+  quantile_plot_file: quantile_curve.pdf
+  alpha_tail_plot_file: alpha_tail_curve.pdf

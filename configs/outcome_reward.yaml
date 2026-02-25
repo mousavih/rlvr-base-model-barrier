@@ -39,5 +39,8 @@ experiment:
     behavior:
       _target_: utils.behavior_policy.OnPolicyBehavior
   track_initial_quantiles: 15
-  likelihood_plot_file: likelihood_vs_iters_outcome.pdf
-  expected_error_plot_file: expected_error_vs_iters_outcome.pdf
+  supervised_track_histogram_file: sup_hist_outcome.pdf
+  supervised_track_histogram_bins: 120
+  supervised_track_likelihood_tensor_file: sup_lik_outcome.pt
+  likelihood_plot_file: pg_lik_curve_outcome.pdf
+  expected_error_plot_file: pg_err_outcome.pdf

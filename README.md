@@ -30,9 +30,10 @@ In the third approach, we train with a process reward model. For any $`i \in [N]
 
 The following experiments are currently implemented:
 
-- `sup_then_pg_outcome` (`configs/outcome_reward.yaml`): supervised pretraining followed by policy-gradient post-training with outcome-based rewards, with likelihood tracking.
-- `sup_then_pg_process` (`configs/process_reward.yaml`): supervised pretraining followed by policy-gradient post-training with process rewards at each step, with likelihood tracking.
+- `sup_then_pg_outcome` (`configs/outcome_reward.yaml`): supervised pretraining followed by policy-gradient post-training with outcome-based rewards, with likelihood tracking and a post-supervised histogram over all `track_set` likelihoods.
+- `sup_then_pg_process` (`configs/process_reward.yaml`): supervised pretraining followed by policy-gradient post-training with process rewards at each step, with likelihood tracking and a post-supervised histogram over all `track_set` likelihoods.
 - `sup_cdf_quantile` (`configs/cdf_quantile.yaml`): supervised training with checkpoint evaluation using CDF, quantile, and alpha-tail plots.
+- `sup_then_pg_threshold_track` (`configs/threshold_track.yaml`): supervised pretraining followed by policy-gradient post-training that tracks only samples with initial likelihood below a threshold and plots the average tracked likelihood over time. Supports both `reward_type: outcome` and `reward_type: process`.
 
 ## Run
 
@@ -47,6 +48,7 @@ Other experiment types:
 ```bash
 python3 main.py process_reward.yaml
 python3 main.py cdf_quantile.yaml
+python3 main.py threshold_track.yaml
 ```
 
 Artifacts are saved to `global.output_dir` from the config.

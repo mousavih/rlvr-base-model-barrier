@@ -201,8 +201,8 @@ def process_reward_train(
         rewards = torch.where(
             correct_prefix,
             torch.ones_like(correct_prefix, dtype=torch.float32),
-            # -torch.ones_like(correct_prefix, dtype=torch.float32),
-            torch.zeros_like(correct_prefix, dtype=torch.float32),
+            -torch.ones_like(correct_prefix, dtype=torch.float32),
+            # torch.zeros_like(correct_prefix, dtype=torch.float32),
         )
 
         adv = rewards - rewards.mean(dim=0, keepdim=True) if baseline else rewards
