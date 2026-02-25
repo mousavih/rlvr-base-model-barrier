@@ -2,14 +2,14 @@
 
 ## Mathematical Setup
 
-Our goal is to train an autoregressive model to predict a response sequence $\boldsymbol{y}$ to an input context $\boldsymbol{x}$, which is drawn from some distribution on $\mathbb{R}^d$. The response is $\boldsymbol{y}=(y_1,...,y_N)$ where each $y_i$ is a number between $0$ and $k-1$. There are two setups of ground truth data generation that we consider:
+Our goal is to train an autoregressive model to predict a response sequence $`\boldsymbol{y}`$ to an input context $`\boldsymbol{x}`$, which is drawn from some distribution on $`\mathbb{R}^d`$. The response is $`\boldsymbol{y}=(y_1,...,y_N)`$ where each $y_i$ is a number between $0$ and $k-1$. There are two setups of ground truth data generation that we consider:
 
-1. Uniform $\boldsymbol{x}$: Here, $\boldsymbol{x}$ is drawn uniformly from the hypercube $`\{\pm 1\}^d`$. 
+1. Uniform $`\boldsymbol{x}`$: Here, $`\boldsymbol{x}`$ is drawn uniformly from the hypercube $`\{\pm 1\}^d`$. 
 
-2. Gaussian Mixture Model $\boldsymbol{x}$: Here, $\boldsymbol{x}$ is drawn from a mixture of M isotropic Gaussians whose means are the first to $M$th standard basis of $\mathbb{R}^d$, and then its normalized.
+2. Gaussian Mixture Model $`\boldsymbol{x}`$: Here, $`\boldsymbol{x}`$ is drawn from a mixture of M isotropic Gaussians whose means are the first to $M$th standard basis of $`\mathbb{R}^d`$, and then its normalized.
 
-In both cases, once $x$ is generated, the ground-truth response $y$ is generated as follows.
-First, $`y_1 = \mathrm{argmax}(\boldsymbol{W}^*_1 x)`$ where $`\boldsymbol{W}^*_1 \in \mathbb{R}^{k \times d}`$. Then, $`y_i = \mathrm{argmax}(\boldsymbol{W}^*_1 x + \boldsymbol{W}^*_2 \boldsymbol{e}_{y_{i-1}})`$ for $i \geq 2$ where $\boldsymbol{e}_y$ is the $`y`$th standard basis of $`\mathbb{R}^k`$, and $`\boldsymbol{W}^*_2 \in \mathbb{R}^{k \times k}`$. We generate $`\boldsymbol{W}^*_1$ and $\boldsymbol{W}^*_2`$ randomly at first and then fix them.
+In both cases, once $`x`$ is generated, the ground-truth response $`y`$ is generated as follows.
+First, $`y_1 = \mathrm{argmax}(\boldsymbol{W}^*_1 x)`$ where $`\boldsymbol{W}^*_1 \in \mathbb{R}^{k \times d}`$. Then, $`y_i = \mathrm{argmax}(\boldsymbol{W}^*_1 x + \boldsymbol{W}^*_2 \boldsymbol{e}_{y_{i-1}})`$ for $i \geq 2$ where $\boldsymbol{e}_y$ is the $`y^{\text{th}}`$ standard basis of $`\mathbb{R}^k`$, and $`\boldsymbol{W}^*_2 \in \mathbb{R}^{k \times k}`$. We generate $`\boldsymbol{W}^*_1$ and $\boldsymbol{W}^*_2`$ randomly at first and then fix them.
 
 Given $`(\boldsymbol{x},y_1,...,y_i)`$, the model predicts $`y_{i+1}`$ by sampling it from 
 ```math
