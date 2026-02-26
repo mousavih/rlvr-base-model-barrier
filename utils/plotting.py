@@ -168,7 +168,7 @@ def plot_likelihood_over_time(
             likelihood_history[:, i],
             label=label,
             color=color,
-            linewidth=2.5,
+            linewidth=1.0,
         )
     ax.tick_params(axis="both", labelsize=20)
 

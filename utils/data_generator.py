@@ -33,7 +33,7 @@ class InputGenerator(ABC):
 class RademacherInputGenerator(InputGenerator):
     def sample(self, batch_size: int, d: int, device: torch.device) -> torch.Tensor:
         x = torch.randint(0, 2, (batch_size, d), device=device, dtype=torch.float32)
-        return _normalize_to_sqrt_d(x * 2.0 - 1.0)
+        return x * 2.0 - 1.0
 
 
 class MixtureInputGenerator(InputGenerator):
@@ -56,12 +56,16 @@ class MixtureInputGenerator(InputGenerator):
             self._means[key] = means
         return means
 
+    def centers(self, d: int, device: torch.device) -> torch.Tensor:
+        """Return normalized mixture centers with shape [num_mix, d]."""
+        return _normalize_to_sqrt_d(self._get_means(d, device))
+
     def sample(self, batch_size: int, d: int, device: torch.device) -> torch.Tensor:
         means = self._get_means(d, device)
         mix_idx = torch.randint(0, self.num_mix, (batch_size,), device=device)
         eps = torch.randn(batch_size, d, device=device) * self.sigma
         eps = _clip_norm(eps, self.sigma)
-        return _normalize_to_sqrt_d(means[mix_idx] + eps)
+        return _normalize_to_sqrt_d(means[mix_idx] + eps) / (d ** 0.5)
 
 
 def init_ground_truth(gt: GroundTruth, d: int, k: int, device: torch.device):

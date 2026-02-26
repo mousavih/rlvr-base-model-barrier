@@ -16,7 +16,13 @@ from .plotting import (
     plot_quantile,
 )
 
-from .data_generator import InputGenerator, GroundTruth, sample_batch
+from .data_generator import (
+    InputGenerator,
+    GroundTruth,
+    MixtureInputGenerator,
+    generate_y,
+    sample_batch,
+)
 from .metrics import compute_sequence_likelihood, estimate_cdf_p
 from .model import AutoregressivePolicy
 from .training import policy_gradient_train, process_reward_train, supervised_train
@@ -42,7 +48,7 @@ def _select_track_samples(
 
 
 def _sample_track_pool(
-    use_test_set: bool,
+    track_source: str,
     test_x: torch.Tensor,
     test_y: torch.Tensor,
     track_set_size: int,
@@ -53,8 +59,16 @@ def _sample_track_pool(
     device: torch.device,
     data_generator: InputGenerator,
 ):
-    if use_test_set:
+    if track_source == "test":
         return test_x, test_y
+    if track_source == "mixture_centers":
+        if not isinstance(data_generator, MixtureInputGenerator):
+            raise ValueError("track_source='mixture_centers' requires MixtureInputGenerator")
+        if gt.w1_star is None or gt.w2_star is None:
+            raise ValueError("Ground-truth weights are not initialized")
+        x = data_generator.centers(d=d, device=device)
+        y = generate_y(x, gt.w1_star, gt.w2_star, seq_length)
+        return x, y
     return sample_batch(
         track_set_size,
         d=d,
@@ -164,7 +178,7 @@ def run_outcome_reward_experiment(
     )
 
     track_x_pool, track_y_pool = _sample_track_pool(
-        use_test_set=(track_source == "test"),
+        track_source=track_source,
         test_x=test_x,
         test_y=test_y,
         track_set_size=track_set_size,
@@ -270,7 +284,7 @@ def run_process_reward_experiment(
     )
 
     track_x_pool, track_y_pool = _sample_track_pool(
-        use_test_set=(track_source == "test"),
+        track_source=track_source,
         test_x=test_x,
         test_y=test_y,
         track_set_size=track_set_size,
@@ -441,7 +455,7 @@ def run_threshold_track_experiment(
     )
 
     track_x_pool, track_y_pool = _sample_track_pool(
-        use_test_set=(track_source == "test"),
+        track_source=track_source,
         test_x=test_x,
         test_y=test_y,
         track_set_size=track_set_size,

@@ -5,7 +5,7 @@ global:
   seq_length: 128
   test_set_size: 1024
   track_set_size: 1024
-  track_source: test
+  track_source: test  # options: test, sample, mixture_centers
   output_dir: outputs/
   # data_generator:
   #   _target_: utils.data_generator.RademacherInputGenerator
