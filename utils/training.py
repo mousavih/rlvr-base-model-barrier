@@ -103,14 +103,13 @@ def policy_gradient_train(
             device=device,
             data_generator=data_generator,
         )
-        y_samples = []
+        y_samples = torch.empty((batch_size, seq_length), device=device, dtype=torch.long)
 
         for t in range(seq_length):
-            y_prefix = torch.stack(y_samples, dim=1) if y_samples else y_true[:, :0]
+            y_prefix = y_samples[:, :t]
             y_t = behavior.sample_step(model, x, y_prefix, y_true, t)
-            y_samples.append(y_t)
+            y_samples[:, t] = y_t
 
-        y_samples = torch.stack(y_samples, dim=1)
         logits = model.logits(x, y_samples)
         logps = F.log_softmax(logits, dim=-1).gather(-1, y_samples.unsqueeze(-1)).squeeze(-1)
         matches = (y_samples == y_true).all(dim=1)
@@ -187,14 +186,13 @@ def process_reward_train(
             device=device,
             data_generator=data_generator,
         )
-        y_samples = []
+        y_samples = torch.empty((batch_size, seq_length), device=device, dtype=torch.long)
 
         for t in range(seq_length):
-            y_prefix = torch.stack(y_samples, dim=1) if y_samples else y_true[:, :0]
+            y_prefix = y_samples[:, :t]
             y_t = behavior.sample_step(model, x, y_prefix, y_true, t)
-            y_samples.append(y_t)
+            y_samples[:, t] = y_t
 
-        y_samples = torch.stack(y_samples, dim=1)
         logits = model.logits(x, y_samples)
         logps = F.log_softmax(logits, dim=-1).gather(-1, y_samples.unsqueeze(-1)).squeeze(-1)
         correct_prefix = (y_samples == y_true).long().cumprod(dim=1).bool()

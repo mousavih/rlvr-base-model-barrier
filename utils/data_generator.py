@@ -65,7 +65,7 @@ class MixtureInputGenerator(InputGenerator):
         mix_idx = torch.randint(0, self.num_mix, (batch_size,), device=device)
         eps = torch.randn(batch_size, d, device=device) * self.sigma
         eps = _clip_norm(eps, self.sigma)
-        return _normalize_to_sqrt_d(means[mix_idx] + eps) / (d ** 0.5)
+        return _normalize_to_sqrt_d(means[mix_idx] + eps)
 
 
 def init_ground_truth(gt: GroundTruth, d: int, k: int, device: torch.device):

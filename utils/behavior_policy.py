@@ -105,20 +105,31 @@ class BoMProcessPolicy(BehaviorPolicy):
         if y_true is None or token_index is None:
             raise ValueError("BoMProcessPolicy requires y_true and token_index")
 
-        locked = torch.zeros(x.shape[0], device=x.device, dtype=torch.bool)
-        locked_actions = torch.zeros(x.shape[0], device=x.device, dtype=torch.long)
-        last_actions = torch.zeros(x.shape[0], device=x.device, dtype=torch.long)
+        batch_size = x.shape[0]
+        if token_index == 0:
+            prefix_correct = torch.ones(batch_size, device=x.device, dtype=torch.bool)
+        else:
+            prefix_correct = (y_prefix == y_true[:, :token_index]).all(dim=1)
 
-        for _ in range(self.m):
-            candidate = self.base_policy.sample_step(learner, x, y_prefix, y_true, token_index)
-            last_actions = candidate
-            prefix_plus = torch.cat([y_prefix, candidate.unsqueeze(1)], dim=1)
-            correct_so_far = (prefix_plus == y_true[:, : token_index + 1]).all(dim=1)
-            newly_locked = (~locked) & correct_so_far
-            locked_actions = torch.where(newly_locked, candidate, locked_actions)
-            locked = locked | newly_locked
+        # Base policy is batch-aware, so we expand B -> B*m and then reshape outputs to [B, m].
+        x_rep = x.repeat_interleave(self.m, dim=0)
+        y_prefix_rep = y_prefix.repeat_interleave(self.m, dim=0)
+        y_true_rep = y_true.repeat_interleave(self.m, dim=0)
+        candidates = self.base_policy.sample_step(
+            learner=learner,
+            x=x_rep,
+            y_prefix=y_prefix_rep,
+            y_true=y_true_rep,
+            token_index=token_index,
+        ).view(batch_size, self.m)
 
-        return torch.where(locked, locked_actions, last_actions)
+        correct_mask = prefix_correct[:, None] & (candidates == y_true[:, token_index : token_index + 1])
+        any_correct = correct_mask.any(dim=1)
+
+        first_correct_idx = correct_mask.to(torch.int64).argmax(dim=1, keepdim=True)
+        first_correct_action = candidates.gather(1, first_correct_idx).squeeze(1)
+        last_action = candidates[:, -1]
+        return torch.where(any_correct, first_correct_action, last_action)
 
 
 class TeacherForcingBehavior(BehaviorPolicy):

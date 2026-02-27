@@ -29,14 +29,13 @@ class AutoregressivePolicy(torch.nn.Module):
         seq_length = y_seq.shape[1]
         w1, w2 = self._split_w()
         base = x @ w1
-        logits = base.unsqueeze(1).expand(-1, seq_length, -1).clone()
+        if seq_length == 1:
+            return base.unsqueeze(1)
 
-        if seq_length > 1:
-            y_prev = y_seq[:, :-1]
-            add = w2[:, y_prev].permute(1, 2, 0)
-            logits[:, 1:, :] += add
-
-        return logits
+        y_prev = y_seq[:, :-1]
+        add = w2.T[y_prev]
+        first = torch.zeros((x.shape[0], 1, self.k), device=x.device, dtype=base.dtype)
+        return base.unsqueeze(1) + torch.cat([first, add], dim=1)
 
     def log_prob_step(self, x: torch.Tensor, y_prefix: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         logits = self.logits_next(x, y_prefix)

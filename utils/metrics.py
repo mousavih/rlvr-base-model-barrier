@@ -10,13 +10,12 @@ from .model import AutoregressivePolicy
 
 @torch.no_grad()
 def eval_sequence_error(model: AutoregressivePolicy, x: torch.Tensor, y_true: torch.Tensor) -> float:
-    _, seq_length = y_true.shape
-    y_samples = []
+    batch_size, seq_length = y_true.shape
+    y_samples = torch.empty((batch_size, seq_length), device=x.device, dtype=torch.long)
     for t in range(seq_length):
-        y_prefix = torch.stack(y_samples, dim=1) if y_samples else y_true[:, :0]
+        y_prefix = y_samples[:, :t]
         y_t = model.sample_step(x, y_prefix)
-        y_samples.append(y_t)
-    y_samples = torch.stack(y_samples, dim=1)
+        y_samples[:, t] = y_t
     matches = (y_samples == y_true).all(dim=1)
     return 1.0 - matches.float().mean().item()
 
