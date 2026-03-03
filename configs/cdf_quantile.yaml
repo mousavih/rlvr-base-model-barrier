@@ -4,8 +4,6 @@ global:
   k: 10
   seq_length: 100
   test_set_size: 1024
-  track_set_size: 1024
-  track_source: test  # options: test, sample, mixture_centers
   output_dir: outputs/
   data_generator:
     _target_: utils.data_generator.RademacherInputGenerator
@@ -15,9 +13,6 @@ global:
   #   sigma: 0.5
 
 experiment:
-  type: cdf_quantile
-  name: sup_cdf_quantile
-  enabled: true
   seed: 0
   num_models: 10
   partial_steps: 500
@@ -27,6 +22,3 @@ experiment:
     _partial_: true
     lr: 1.0
   cdf_samples: 16384
-  cdf_plot_file: cdf_curve.pdf
-  quantile_plot_file: quantile_curve.pdf
-  alpha_tail_plot_file: alpha_tail_curve.pdf

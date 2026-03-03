@@ -12,49 +12,42 @@ global:
   data_generator:
     _target_: utils.data_generator.MixtureInputGenerator
     num_mix: 32
-    sigma: 0.01
+    sigma: 0.05
 
 experiment:
-  type: process_reward
-  name: sup_then_pg_process
-  enabled: true
   seed: 0
   supervised:
-    steps: 1500
+    steps: 1000
     batch_size: 256
     optimizer:
-      _target_: torch.optim.SGD
+      _target_: torch.optim.Adagrad
       _partial_: true
       lr: 0.1
     test_every: 50
   pg:
-    steps: 1500
+    steps: 1000
     batch_size: 256
     optimizer:
-      _target_: torch.optim.SGD
+      _target_: torch.optim.Adagrad
       _partial_: true
       lr: 0.1
     test_every: 50
-    track_every: 10
+    track_every: 2
     baseline: false
     # behavior:
     #   _target_: utils.behavior_policy.TeacherForcingBehavior
     # behavior:
     #   _target_: utils.behavior_policy.OnPolicyBehavior
-    # behavior:
-    #   _target_: utils.behavior_policy.BoMProcessPolicy
-    #   m: 10
-    #   base_policy:
-    #     _target_: utils.behavior_policy.EpsilonMixtureBehavior
-    #     k: ${global.k}
-    #     epsilon: 0.5
     behavior:
-      _target_: utils.behavior_policy.EpsilonMixtureBehavior
-      k: ${global.k}
-      epsilon: 0.5
+      _target_: utils.behavior_policy.BoMProcessPolicy
+      m: 10
+      base_policy:
+        _target_: utils.behavior_policy.EpsilonMixtureBehavior
+        k: ${global.k}
+        epsilon: 0.5
+    # behavior:
+    #   _target_: utils.behavior_policy.EpsilonMixtureBehavior
+    #   k: ${global.k}
+    #   epsilon: 0.5
   track_initial_quantiles: 15
-  supervised_track_histogram_file: sup_hist_process.pdf
-  supervised_track_histogram_bins: 120
-  supervised_track_likelihood_tensor_file: sup_lik_process.pt
-  likelihood_plot_file: pg_lik_curve_process.pdf
-  expected_error_plot_file: pg_err_process.pdf
+  base_likelihood_histogram_bins: 120

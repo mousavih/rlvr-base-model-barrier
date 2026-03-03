@@ -30,25 +30,35 @@ In the third approach, we train with a process reward model. For any $`i \in [N]
 
 The following experiments are currently implemented:
 
-- `sup_then_pg_outcome` (`configs/outcome_reward.yaml`): supervised pretraining followed by policy-gradient post-training with outcome-based rewards, with likelihood tracking and a post-supervised histogram over all `track_set` likelihoods.
-- `sup_then_pg_process` (`configs/process_reward.yaml`): supervised pretraining followed by policy-gradient post-training with process rewards at each step, with likelihood tracking and a post-supervised histogram over all `track_set` likelihoods.
-- `sup_cdf_quantile` (`configs/cdf_quantile.yaml`): supervised training with checkpoint evaluation using CDF, quantile, and alpha-tail plots.
-- `sup_then_pg_threshold_track` (`configs/threshold_track.yaml`): supervised pretraining followed by policy-gradient post-training that tracks only samples with initial likelihood below a threshold and plots the average tracked likelihood over time. Supports both `reward_type: outcome` and `reward_type: process`.
+- `outcome_reward` (`configs/outcome_reward.yaml`): supervised pretraining + policy-gradient post-training with outcome rewards, plus base-likelihood histogram and tracked likelihood/error curves.
+- `process_reward` (`configs/process_reward.yaml`): supervised pretraining + policy-gradient post-training with process rewards, plus base-likelihood histogram and tracked likelihood/error curves.
+- `cdf_quantile` (`configs/cdf_quantile.yaml`): supervised training checkpoints with CDF, quantile, and alpha-tail plots.
+- `threshold_track` (`configs/threshold_track.yaml`): supervised pretraining + policy-gradient post-training tracking only low-base-likelihood samples (supports `reward_type: outcome|process`), with base histogram and average tracked likelihood/error curves.
 
-## Run
+## Run And Plot
 
-Install `requirements.txt` in a new virtual environment. Then run one experiment per command (one config file per experiment type):
+Install `requirements.txt` in a new virtual environment.
+
+Run an experiment:
 
 ```bash
-python3 main.py outcome_reward.yaml
+python3 main.py run outcome_reward.yaml
 ```
 
 Other experiment types:
 
 ```bash
-python3 main.py process_reward.yaml
-python3 main.py cdf_quantile.yaml
-python3 main.py threshold_track.yaml
+python3 main.py run process_reward.yaml
+python3 main.py run cdf_quantile.yaml
+python3 main.py run threshold_track.yaml
 ```
 
-Artifacts are saved to `global.output_dir` from the config.
+Artifacts are saved to `global.output_dir` from the config.  
+Generate plots later from saved artifacts:
+
+```bash
+python3 main.py plot outcome_reward
+python3 main.py plot process_reward
+python3 main.py plot cdf_quantile
+python3 main.py plot threshold_track
+```

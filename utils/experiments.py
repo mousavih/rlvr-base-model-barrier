@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, Tuple
+from typing import Any, Iterable
 
 import torch
 from hydra.utils import instantiate
 
 from .plotting import (
-    plot_average_likelihood_over_time,
     plot_alpha_tail,
     plot_cdf,
     plot_expected_error_over_time,
+    plot_average_likelihood_over_time,
     plot_likelihood_histogram,
     plot_likelihood_over_time,
     plot_quantile,
@@ -37,14 +37,14 @@ def _select_track_samples(
     x: torch.Tensor,
     y: torch.Tensor,
     quantiles: Iterable[float],
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     likelihoods = compute_sequence_likelihood(model, x, y)
     _, sorted_idx = torch.sort(likelihoods)
     n = sorted_idx.numel()
     q_tensor = torch.tensor(list(quantiles), dtype=torch.float32)
     positions = [int(q.item() * (n - 1)) for q in q_tensor]
     track_idx = sorted_idx[positions]
-    return x[track_idx], y[track_idx], q_tensor
+    return x[track_idx], y[track_idx]
 
 
 def _sample_track_pool(
@@ -81,39 +81,154 @@ def _sample_track_pool(
 
 
 def _resolve_quantiles(exp: Any) -> list[float]:
-    if exp.get("quantiles") is not None:
-        return list(exp.quantiles)
-    num_quantiles = int(exp.get("track_initial_quantiles", exp.get("num_quantiles", 15)))
+    num_quantiles = int(exp.get("track_initial_quantiles", 15))
     return torch.linspace(0.0, 1.0, num_quantiles).tolist()
 
 
-def _plot_supervised_track_set_likelihood_histogram(
-    exp: Any,
-    output_dir: str | Path,
-    fallback_filename: str,
-    likelihoods: torch.Tensor,
-):
-    histogram_file = exp.get("supervised_track_histogram_file", fallback_filename)
-    if not histogram_file:
-        return
-    bins = int(exp.get("supervised_track_histogram_bins", 80))
-    plot_likelihood_histogram(
-        likelihoods=likelihoods,
-        filename=str(Path(output_dir) / histogram_file),
-        bins=bins,
-    )
+def _to_cpu_history(history: list[torch.Tensor]) -> list[torch.Tensor]:
+    return [h.detach().cpu() for h in history]
 
 
-def _save_supervised_track_set_likelihood_tensor(
-    exp: Any,
+def _fixed_plot_files(experiment_type: str, reward_type: str | None = None) -> dict[str, str]:
+    if experiment_type == "outcome_reward":
+        return {
+            "base_likelihood_histogram_file": "outcome_reward_base_likelihood_histogram.pdf",
+            "likelihood_plot_file": "outcome_reward_likelihood_over_time.pdf",
+            "expected_error_plot_file": "outcome_reward_expected_error_over_time.pdf",
+        }
+    if experiment_type == "process_reward":
+        return {
+            "base_likelihood_histogram_file": "process_reward_base_likelihood_histogram.pdf",
+            "likelihood_plot_file": "process_reward_likelihood_over_time.pdf",
+            "expected_error_plot_file": "process_reward_expected_error_over_time.pdf",
+        }
+    if experiment_type == "cdf_quantile":
+        return {
+            "cdf_plot_file": "cdf_quantile_cdf.pdf",
+            "quantile_plot_file": "cdf_quantile_quantile.pdf",
+            "alpha_tail_plot_file": "cdf_quantile_alpha_tail.pdf",
+        }
+    if experiment_type == "threshold_track":
+        reward = reward_type or "unknown"
+        return {
+            "base_likelihood_histogram_file": f"threshold_track_{reward}_base_likelihood_histogram.pdf",
+            "average_likelihood_plot_file": f"threshold_track_{reward}_average_likelihood_over_time.pdf",
+            "expected_error_plot_file": f"threshold_track_{reward}_expected_error_over_time.pdf",
+        }
+    raise ValueError(f"Unknown experiment type for fixed plot files: {experiment_type}")
+
+
+def _default_artifact_file(experiment_name: str) -> str:
+    safe_name = str(experiment_name).replace("/", "_")
+    return f"{safe_name}.pt"
+
+
+def _torch_load_cpu(path: Path) -> Any:
+    return torch.load(path, map_location="cpu")
+
+
+def save_experiment_artifact(
+    artifact: dict[str, Any],
     output_dir: str | Path,
-    fallback_filename: str,
-    likelihoods: torch.Tensor,
+    artifact_file: str | None = None,
+    experiment_name: str | None = None,
+) -> Path:
+    _ensure_output_dir(output_dir)
+    if artifact_file is None and not experiment_name:
+        raise ValueError("experiment_name is required when artifact_file is not provided")
+    filename = artifact_file or _default_artifact_file(str(experiment_name))
+    artifact_path = Path(output_dir) / filename
+    torch.save(artifact, artifact_path)
+    return artifact_path
+
+
+def load_experiment_artifact(path: str | Path) -> dict[str, Any]:
+    artifact = _torch_load_cpu(Path(path))
+    if not isinstance(artifact, dict):
+        raise ValueError(f"Artifact at {path} is not a dictionary")
+    return artifact
+
+
+def find_experiment_artifact(
+    experiment_name: str,
+    output_dir: str | Path,
+) -> Path:
+    output_path = Path(output_dir)
+    if not output_path.exists():
+        raise FileNotFoundError(f"Output directory does not exist: {output_path}")
+    expected = output_path / _default_artifact_file(experiment_name)
+    if not expected.exists():
+        raise FileNotFoundError(
+            f"No artifact found for experiment_name='{experiment_name}'. "
+            f"Expected file: {expected}"
+        )
+    return expected
+
+
+def plot_experiment_artifact(
+    artifact: dict[str, Any],
+    output_dir: str | Path,
 ):
-    tensor_file = exp.get("supervised_track_likelihood_tensor_file", fallback_filename)
-    if not tensor_file:
+    _ensure_output_dir(output_dir)
+    exp_type = str(artifact["experiment_type"])
+    data = artifact["data"]
+    plot_cfg = artifact.get("plot", {})
+    fixed_files = _fixed_plot_files(exp_type, plot_cfg.get("reward_type"))
+
+    if "base_likelihood_histogram_file" in fixed_files:
+        plot_likelihood_histogram(
+            likelihoods=data["track_pool_likelihoods"],
+            filename=str(Path(output_dir) / fixed_files["base_likelihood_histogram_file"]),
+            bins=int(plot_cfg.get("base_likelihood_histogram_bins", 80)),
+        )
+
+    if exp_type in ("outcome_reward", "process_reward"):
+        plot_likelihood_over_time(
+            data["likelihood_history"],
+            filename=str(Path(output_dir) / fixed_files["likelihood_plot_file"]),
+            track_every=int(plot_cfg["track_every"]),
+        )
+        plot_expected_error_over_time(
+            data["pg_errors"],
+            filename=str(Path(output_dir) / fixed_files["expected_error_plot_file"]),
+            test_every=int(plot_cfg["test_every"]),
+        )
         return
-    torch.save(likelihoods.detach().cpu(), Path(output_dir) / tensor_file)
+
+    if exp_type == "cdf_quantile":
+        cdfs = data["cdfs"]
+        all_steps = data["all_steps"]
+        plot_cdf(
+            cdfs,
+            all_steps,
+            filename=str(Path(output_dir) / fixed_files["cdf_plot_file"]),
+        )
+        plot_quantile(
+            cdfs,
+            all_steps,
+            filename=str(Path(output_dir) / fixed_files["quantile_plot_file"]),
+        )
+        plot_alpha_tail(
+            cdfs,
+            all_steps,
+            filename=str(Path(output_dir) / fixed_files["alpha_tail_plot_file"]),
+        )
+        return
+
+    if exp_type == "threshold_track":
+        plot_average_likelihood_over_time(
+            data["likelihood_history"],
+            filename=str(Path(output_dir) / fixed_files["average_likelihood_plot_file"]),
+            track_every=int(plot_cfg["track_every"]),
+        )
+        plot_expected_error_over_time(
+            data["pg_errors"],
+            filename=str(Path(output_dir) / fixed_files["expected_error_plot_file"]),
+            test_every=int(plot_cfg["test_every"]),
+        )
+        return
+
+    raise ValueError(f"Unknown experiment type in artifact: {exp_type}")
 
 
 def _select_low_likelihood_track_samples(
@@ -145,11 +260,9 @@ def run_outcome_reward_experiment(
     device: torch.device,
     test_set_size: int,
     track_set_size: int,
-    output_dir: str,
     track_source: str = "test",
     data_generator: InputGenerator | None = None,
-):
-    _ensure_output_dir(output_dir)
+) -> dict[str, Any]:
     if data_generator is None:
         raise ValueError("data_generator must be provided")
     test_x, test_y = sample_batch(
@@ -190,19 +303,7 @@ def run_outcome_reward_experiment(
         data_generator=data_generator,
     )
     track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-    _plot_supervised_track_set_likelihood_histogram(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihood_hist_after_supervised_outcome.pdf",
-        likelihoods=track_pool_likelihoods,
-    )
-    _save_supervised_track_set_likelihood_tensor(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihoods_after_supervised_outcome.pt",
-        likelihoods=track_pool_likelihoods,
-    )
-    track_x, track_y, q_tensor = _select_track_samples(
+    track_x, track_y = _select_track_samples(
         sup_model,
         track_x_pool,
         track_y_pool,
@@ -228,18 +329,19 @@ def run_outcome_reward_experiment(
         data_generator=data_generator,
     )
 
-    plot_likelihood_over_time(
-        history,
-        filename=str(Path(output_dir) / exp.likelihood_plot_file),
-        track_every=exp.pg.track_every,
-        quantiles=q_tensor,
-    )
-    if exp.expected_error_plot_file:
-        plot_expected_error_over_time(
-            pg_errors,
-            filename=str(Path(output_dir) / exp.expected_error_plot_file),
-            test_every=exp.pg.test_every,
-        )
+    return {
+        "experiment_type": "outcome_reward",
+        "plot": {
+            "base_likelihood_histogram_bins": int(exp.get("base_likelihood_histogram_bins", 80)),
+            "track_every": int(exp.pg.track_every),
+            "test_every": int(exp.pg.test_every),
+        },
+        "data": {
+            "track_pool_likelihoods": track_pool_likelihoods.detach().cpu(),
+            "likelihood_history": _to_cpu_history(history),
+            "pg_errors": torch.as_tensor(pg_errors, dtype=torch.float32).detach().cpu(),
+        },
+    }
 
 
 def run_process_reward_experiment(
@@ -251,11 +353,9 @@ def run_process_reward_experiment(
     device: torch.device,
     test_set_size: int,
     track_set_size: int,
-    output_dir: str,
     track_source: str = "test",
     data_generator: InputGenerator | None = None,
-):
-    _ensure_output_dir(output_dir)
+) -> dict[str, Any]:
     if data_generator is None:
         raise ValueError("data_generator must be provided")
     test_x, test_y = sample_batch(
@@ -296,19 +396,7 @@ def run_process_reward_experiment(
         data_generator=data_generator,
     )
     track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-    _plot_supervised_track_set_likelihood_histogram(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihood_hist_after_supervised_process.pdf",
-        likelihoods=track_pool_likelihoods,
-    )
-    _save_supervised_track_set_likelihood_tensor(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihoods_after_supervised_process.pt",
-        likelihoods=track_pool_likelihoods,
-    )
-    track_x, track_y, q_tensor = _select_track_samples(
+    track_x, track_y = _select_track_samples(
         sup_model,
         track_x_pool,
         track_y_pool,
@@ -335,18 +423,19 @@ def run_process_reward_experiment(
         data_generator=data_generator,
     )
 
-    plot_likelihood_over_time(
-        history,
-        filename=str(Path(output_dir) / exp.likelihood_plot_file),
-        track_every=exp.pg.track_every,
-        quantiles=q_tensor,
-    )
-    if exp.expected_error_plot_file:
-        plot_expected_error_over_time(
-            pg_errors,
-            filename=str(Path(output_dir) / exp.expected_error_plot_file),
-            test_every=exp.pg.test_every,
-        )
+    return {
+        "experiment_type": "process_reward",
+        "plot": {
+            "base_likelihood_histogram_bins": int(exp.get("base_likelihood_histogram_bins", 80)),
+            "track_every": int(exp.pg.track_every),
+            "test_every": int(exp.pg.test_every),
+        },
+        "data": {
+            "track_pool_likelihoods": track_pool_likelihoods.detach().cpu(),
+            "likelihood_history": _to_cpu_history(history),
+            "pg_errors": torch.as_tensor(pg_errors, dtype=torch.float32).detach().cpu(),
+        },
+    }
 
 
 def run_cdf_quantile_experiment(
@@ -357,10 +446,8 @@ def run_cdf_quantile_experiment(
     gt: GroundTruth,
     device: torch.device,
     test_set_size: int,
-    output_dir: str,
     data_generator: InputGenerator | None = None,
-):
-    _ensure_output_dir(output_dir)
+) -> dict[str, Any]:
     if data_generator is None:
         raise ValueError("data_generator must be provided")
 
@@ -406,10 +493,13 @@ def run_cdf_quantile_experiment(
     )
     cdfs = estimate_cdf_p(models, x=cdf_x, y=cdf_y)
 
-    plot_cdf(cdfs, all_steps, filename=str(Path(output_dir) / exp.cdf_plot_file))
-    plot_quantile(cdfs, all_steps, filename=str(Path(output_dir) / exp.quantile_plot_file))
-    if exp.alpha_tail_plot_file:
-        plot_alpha_tail(cdfs, all_steps, filename=str(Path(output_dir) / exp.alpha_tail_plot_file))
+    return {
+        "experiment_type": "cdf_quantile",
+        "data": {
+            "all_steps": all_steps.detach().cpu(),
+            "cdfs": [cdf.detach().cpu() for cdf in cdfs],
+        },
+    }
 
 
 def run_threshold_track_experiment(
@@ -421,11 +511,9 @@ def run_threshold_track_experiment(
     device: torch.device,
     test_set_size: int,
     track_set_size: int,
-    output_dir: str,
     track_source: str = "test",
     data_generator: InputGenerator | None = None,
-):
-    _ensure_output_dir(output_dir)
+) -> dict[str, Any]:
     if data_generator is None:
         raise ValueError("data_generator must be provided")
 
@@ -467,23 +555,11 @@ def run_threshold_track_experiment(
         data_generator=data_generator,
     )
     track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-    _plot_supervised_track_set_likelihood_histogram(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihood_hist_after_supervised_threshold_track.pdf",
-        likelihoods=track_pool_likelihoods,
-    )
-    _save_supervised_track_set_likelihood_tensor(
-        exp=exp,
-        output_dir=output_dir,
-        fallback_filename="track_set_likelihoods_after_supervised_threshold_track.pt",
-        likelihoods=track_pool_likelihoods,
-    )
 
     threshold = float(exp.initial_likelihood_threshold)
     max_samples = exp.get("max_tracked_samples")
     max_samples = int(max_samples) if max_samples is not None else None
-    track_x, track_y, initial_selected_likelihoods = _select_low_likelihood_track_samples(
+    track_x, track_y, _ = _select_low_likelihood_track_samples(
         track_x_pool,
         track_y_pool,
         track_pool_likelihoods,
@@ -495,7 +571,6 @@ def run_threshold_track_experiment(
         f"{track_x.shape[0]} / {track_x_pool.shape[0]} samples "
         f"with initial likelihood < {threshold:.6f}"
     )
-
     reward_type = str(exp.reward_type).lower()
     if reward_type == "outcome":
         _, pg_errors, history = policy_gradient_train(
@@ -539,19 +614,17 @@ def run_threshold_track_experiment(
     else:
         raise ValueError(f"Unknown reward_type for threshold_track experiment: {exp.reward_type}")
 
-    plot_average_likelihood_over_time(
-        history,
-        filename=str(Path(output_dir) / exp.average_likelihood_plot_file),
-        track_every=exp.pg.track_every,
-    )
-    torch.save(
-        initial_selected_likelihoods.detach().cpu(),
-        Path(output_dir) / exp.selected_initial_likelihood_tensor_file,
-    )
-
-    if exp.get("expected_error_plot_file"):
-        plot_expected_error_over_time(
-            pg_errors,
-            filename=str(Path(output_dir) / exp.expected_error_plot_file),
-            test_every=exp.pg.test_every,
-        )
+    return {
+        "experiment_type": "threshold_track",
+        "plot": {
+            "base_likelihood_histogram_bins": int(exp.get("base_likelihood_histogram_bins", 80)),
+            "track_every": int(exp.pg.track_every),
+            "test_every": int(exp.pg.test_every),
+            "reward_type": reward_type,
+        },
+        "data": {
+            "track_pool_likelihoods": track_pool_likelihoods.detach().cpu(),
+            "likelihood_history": _to_cpu_history(history),
+            "pg_errors": torch.as_tensor(pg_errors, dtype=torch.float32).detach().cpu(),
+        },
+    }

@@ -15,16 +15,13 @@ global:
     sigma: 0.05
 
 experiment:
-  type: threshold_track
-  name: sup_then_pg_threshold_track
-  enabled: true
   seed: 0
   reward_type: process  # options: outcome or process
   initial_likelihood_threshold: 1e-9
   max_tracked_samples: 512
 
   supervised:
-    steps: 300
+    steps: 1000
     batch_size: 256
     optimizer:
       _target_: torch.optim.Adagrad
@@ -33,14 +30,14 @@ experiment:
     test_every: 50
 
   pg:
-    steps: 300
+    steps: 1000
     batch_size: 256
     optimizer:
       _target_: torch.optim.Adagrad
       _partial_: true
       lr: 0.1
     test_every: 50
-    track_every: 10
+    track_every: 2
     baseline: false
     behavior:
       # _target_: utils.behavior_policy.OnPolicyBehavior
@@ -54,9 +51,4 @@ experiment:
         k: ${global.k}
         epsilon: 0.5
 
-  supervised_track_histogram_file: sup_hist_threshold.pdf
-  supervised_track_histogram_bins: 120
-  supervised_track_likelihood_tensor_file: sup_lik_threshold.pt
-  selected_initial_likelihood_tensor_file: selected_lik_threshold_${experiment.reward_type}.pt
-  average_likelihood_plot_file: avg_lik_curve_threshold_${experiment.reward_type}.pdf
-  expected_error_plot_file: pg_err_threshold_${experiment.reward_type}.pdf
+  base_likelihood_histogram_bins: 120

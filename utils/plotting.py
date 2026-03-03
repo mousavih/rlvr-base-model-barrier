@@ -160,17 +160,19 @@ def plot_likelihood_over_time(
     cmap = mpl.cm.plasma
 
     fig, ax = plt.subplots(figsize=(7.6, 6))
+    steps = torch.arange(len(likelihood_history)) * track_every + 1
     for i in range(num_samples):
         color = cmap(norm(initial[i]))
         label = (r"$\mathcal{Q}_q$" + f"({quantiles[i]:.2f})") if quantiles is not None else f"Sample {i}"
         ax.plot(
-            torch.arange(len(likelihood_history)) * track_every,
+            steps,
             likelihood_history[:, i],
             label=label,
             color=color,
             linewidth=1.0,
         )
     ax.tick_params(axis="both", labelsize=20)
+    ax.set_xscale("log")
 
     ax.set_xlabel(r"PG Step", fontsize=24)
     ax.set_ylabel(r"Likelihood - $p_{\bm{w}_t}\big(\bm{y}^*|\bm{x}\big)$", fontsize=24)
@@ -205,10 +207,11 @@ def plot_average_likelihood_over_time(
 
     history = torch.stack(likelihood_history, dim=0).detach().cpu()
     mean_likelihood = history.mean(dim=1)
-    steps = torch.arange(history.shape[0]) * track_every
+    steps = torch.arange(history.shape[0]) * track_every + 1
 
     fig, ax = plt.subplots(figsize=(7.6, 6))
     ax.plot(steps.numpy(), mean_likelihood.numpy(), linewidth=2.5)
+    ax.set_xscale("log")
     ax.set_xlabel(r"PG Step", fontsize=24)
     ax.set_ylabel(r"Average Likelihood - $\mathbb{E}[p_{\bm{w}_t}(\bm{y}^*|\bm{x})]$", fontsize=22)
     ax.tick_params(axis="both", labelsize=20)
@@ -251,16 +254,18 @@ def plot_multi_likelihoods_over_time(likelihood_histories, filename="likelihood_
 
     for run_idx, history in enumerate(likelihood_histories):
         arr = torch.stack(history, dim=0).cpu().numpy()  # (num_steps, num_samples)
-        _, num_samples = arr.shape
+        num_steps, num_samples = arr.shape
+        steps = torch.arange(num_steps).numpy() + 1
         initial = arr[0]
         ax = axes[run_idx]
         for i in range(num_samples):
             color = cmap(norm(initial[i]))
-            ax.plot(arr[:, i], color=color)
+            ax.plot(steps, arr[:, i], color=color)
         if titles is not None and run_idx < len(titles):
             ax.set_title(titles[run_idx], fontsize=24)
         else:
             ax.set_title(r"Likelihood over training", fontsize=24)
+        ax.set_xscale("log")
         ax.set_xlabel(r"PG Step", fontsize=24)
         ax.tick_params(axis="both", labelsize=20)
         ax.grid(True)
