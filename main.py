@@ -10,6 +10,7 @@ from hydra.utils import instantiate
 
 from utils.config import load_config
 from utils.data_generator import GroundTruth, RademacherInputGenerator
+from utils.plotting import plot_compare_average_likelihood_over_time
 from utils.experiments import (
     find_experiment_artifact,
     load_experiment_artifact,
@@ -18,7 +19,6 @@ from utils.experiments import (
     run_outcome_reward_experiment,
     run_process_reward_experiment,
     save_experiment_artifact,
-    run_threshold_track_experiment,
 )
 
 
@@ -61,6 +61,12 @@ def parse_args():
         default=None,
         help="Explicit artifact filename under output_dir",
     )
+    plot_parser.add_argument(
+        "--ema_beta",
+        type=float,
+        default=0.0,
+        help="EMA beta for outcome/process likelihood plots in [0, 1) (default: 0.0, no smoothing)",
+    )
     return parser.parse_args()
 
 
@@ -82,11 +88,15 @@ def _run_command(config_name: str, output_dir_override: str | None, artifact_fil
     exp = cfg.experiment
     exp_type = config_path.stem
     experiment_name = config_path.stem
+    if exp_type in ("outcome_reward", "process_reward"):
+        tracking_type = str(exp.get("likelihood_tracking_type", "uniform")).lower()
+        if tracking_type not in ("uniform", "threshold"):
+            raise ValueError(f"Unknown likelihood_tracking_type: {tracking_type}")
+        experiment_name = f"{exp_type}_{tracking_type}"
     valid_experiment_types = {
         "outcome_reward",
         "process_reward",
         "cdf_quantile",
-        "threshold_track",
     }
     if exp_type not in valid_experiment_types:
         raise ValueError(
@@ -146,20 +156,6 @@ def _run_command(config_name: str, output_dir_override: str | None, artifact_fil
             test_set_size=global_cfg.test_set_size,
             data_generator=data_generator,
         )
-    elif exp_type == "threshold_track":
-        print(f"Running threshold-track experiment: {experiment_name}")
-        artifact = run_threshold_track_experiment(
-            exp=exp,
-            d=global_cfg.d,
-            k=global_cfg.k,
-            seq_length=global_cfg.seq_length,
-            gt=gt,
-            device=device,
-            test_set_size=global_cfg.test_set_size,
-            track_set_size=global_cfg.track_set_size,
-            track_source=global_cfg.track_source,
-            data_generator=data_generator,
-        )
     else:
         raise ValueError(f"Unknown experiment type: {exp_type}")
     saved_path = save_experiment_artifact(
@@ -171,9 +167,36 @@ def _run_command(config_name: str, output_dir_override: str | None, artifact_fil
     print(f"Saved artifact: {saved_path}")
 
 
-def _plot_command(experiment_name: str, output_dir_override: str | None, artifact_file: str | None):
+def _plot_command(
+    experiment_name: str,
+    output_dir_override: str | None,
+    artifact_file: str | None,
+    ema_beta: float = 0.0,
+):
     experiment_name = _config_stem(experiment_name)
     output_dir = Path(output_dir_override or "outputs/")
+
+    if experiment_name == "compare_outcome_process":
+        outcome_path = find_experiment_artifact("outcome_reward_threshold", output_dir=output_dir)
+        process_path = find_experiment_artifact("process_reward_threshold", output_dir=output_dir)
+        outcome_artifact = load_experiment_artifact(outcome_path)
+        process_artifact = load_experiment_artifact(process_path)
+        plot_compare_average_likelihood_over_time(
+            outcome_likelihood_history=outcome_artifact["data"]["likelihood_history"],
+            process_likelihood_history=process_artifact["data"]["likelihood_history"],
+            filename=str(output_dir / "compare_outcome_process_threshold_likelihood_over_time.pdf"),
+            outcome_track_every=int(outcome_artifact["plot"]["track_every"]),
+            process_track_every=int(process_artifact["plot"]["track_every"]),
+        )
+        print(
+            "Generated comparison plot: "
+            f"{output_dir / 'compare_outcome_process_threshold_likelihood_over_time.pdf'}"
+        )
+        return
+
+    if experiment_name in ("outcome_reward", "process_reward"):
+        experiment_name = f"{experiment_name}_uniform"
+
     if artifact_file:
         artifact_path = output_dir / artifact_file
     else:
@@ -182,7 +205,11 @@ def _plot_command(experiment_name: str, output_dir_override: str | None, artifac
             output_dir=output_dir,
         )
     artifact = load_experiment_artifact(artifact_path)
-    plot_experiment_artifact(artifact=artifact, output_dir=output_dir)
+    plot_experiment_artifact(
+        artifact=artifact,
+        output_dir=output_dir,
+        ema_beta=ema_beta,
+    )
     print(f"Generated plots for '{artifact_path.stem}' from artifact: {artifact_path}")
 
 
@@ -200,6 +227,7 @@ def main():
             experiment_name=args.experiment_name,
             output_dir_override=args.output_dir,
             artifact_file=args.artifact_file,
+            ema_beta=args.ema_beta,
         )
         return
     raise ValueError(f"Unknown command: {args.command}")

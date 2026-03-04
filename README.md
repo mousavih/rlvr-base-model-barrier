@@ -33,7 +33,10 @@ The following experiments are currently implemented:
 - `outcome_reward` (`configs/outcome_reward.yaml`): supervised pretraining + policy-gradient post-training with outcome rewards, plus base-likelihood histogram and tracked likelihood/error curves.
 - `process_reward` (`configs/process_reward.yaml`): supervised pretraining + policy-gradient post-training with process rewards, plus base-likelihood histogram and tracked likelihood/error curves.
 - `cdf_quantile` (`configs/cdf_quantile.yaml`): supervised training checkpoints with CDF, quantile, and alpha-tail plots.
-- `threshold_track` (`configs/threshold_track.yaml`): supervised pretraining + policy-gradient post-training tracking only low-base-likelihood samples (supports `reward_type: outcome|process`), with base histogram and average tracked likelihood/error curves.
+
+For `outcome_reward` and `process_reward`, you can choose tracking mode via:
+- `experiment.likelihood_tracking_type: uniform`
+- `experiment.likelihood_tracking_type: threshold` (also set `initial_likelihood_threshold`, optionally `max_tracked_samples`)
 
 ## Run And Plot
 
@@ -50,7 +53,6 @@ Other experiment types:
 ```bash
 python3 main.py run process_reward.yaml
 python3 main.py run cdf_quantile.yaml
-python3 main.py run threshold_track.yaml
 ```
 
 Artifacts are saved to `global.output_dir` from the config.  
@@ -60,5 +62,5 @@ Generate plots later from saved artifacts:
 python3 main.py plot outcome_reward
 python3 main.py plot process_reward
 python3 main.py plot cdf_quantile
-python3 main.py plot threshold_track
+python3 main.py plot compare_outcome_process
 ```

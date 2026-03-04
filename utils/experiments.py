@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import torch
 from hydra.utils import instantiate
@@ -10,7 +10,6 @@ from .plotting import (
     plot_alpha_tail,
     plot_cdf,
     plot_expected_error_over_time,
-    plot_average_likelihood_over_time,
     plot_likelihood_histogram,
     plot_likelihood_over_time,
     plot_quantile,
@@ -30,21 +29,6 @@ from .training import policy_gradient_train, process_reward_train, supervised_tr
 
 def _ensure_output_dir(output_dir: str | Path):
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-
-def _select_track_samples(
-    model: AutoregressivePolicy,
-    x: torch.Tensor,
-    y: torch.Tensor,
-    quantiles: Iterable[float],
-) -> tuple[torch.Tensor, torch.Tensor]:
-    likelihoods = compute_sequence_likelihood(model, x, y)
-    _, sorted_idx = torch.sort(likelihoods)
-    n = sorted_idx.numel()
-    q_tensor = torch.tensor(list(quantiles), dtype=torch.float32)
-    positions = [int(q.item() * (n - 1)) for q in q_tensor]
-    track_idx = sorted_idx[positions]
-    return x[track_idx], y[track_idx]
 
 
 def _sample_track_pool(
@@ -89,7 +73,7 @@ def _to_cpu_history(history: list[torch.Tensor]) -> list[torch.Tensor]:
     return [h.detach().cpu() for h in history]
 
 
-def _fixed_plot_files(experiment_type: str, reward_type: str | None = None) -> dict[str, str]:
+def _fixed_plot_files(experiment_type: str) -> dict[str, str]:
     if experiment_type == "outcome_reward":
         return {
             "base_likelihood_histogram_file": "outcome_reward_base_likelihood_histogram.pdf",
@@ -107,13 +91,6 @@ def _fixed_plot_files(experiment_type: str, reward_type: str | None = None) -> d
             "cdf_plot_file": "cdf_quantile_cdf.pdf",
             "quantile_plot_file": "cdf_quantile_quantile.pdf",
             "alpha_tail_plot_file": "cdf_quantile_alpha_tail.pdf",
-        }
-    if experiment_type == "threshold_track":
-        reward = reward_type or "unknown"
-        return {
-            "base_likelihood_histogram_file": f"threshold_track_{reward}_base_likelihood_histogram.pdf",
-            "average_likelihood_plot_file": f"threshold_track_{reward}_average_likelihood_over_time.pdf",
-            "expected_error_plot_file": f"threshold_track_{reward}_expected_error_over_time.pdf",
         }
     raise ValueError(f"Unknown experiment type for fixed plot files: {experiment_type}")
 
@@ -168,12 +145,13 @@ def find_experiment_artifact(
 def plot_experiment_artifact(
     artifact: dict[str, Any],
     output_dir: str | Path,
+    ema_beta: float = 0.0,
 ):
     _ensure_output_dir(output_dir)
     exp_type = str(artifact["experiment_type"])
     data = artifact["data"]
     plot_cfg = artifact.get("plot", {})
-    fixed_files = _fixed_plot_files(exp_type, plot_cfg.get("reward_type"))
+    fixed_files = _fixed_plot_files(exp_type)
 
     if "base_likelihood_histogram_file" in fixed_files:
         plot_likelihood_histogram(
@@ -187,6 +165,7 @@ def plot_experiment_artifact(
             data["likelihood_history"],
             filename=str(Path(output_dir) / fixed_files["likelihood_plot_file"]),
             track_every=int(plot_cfg["track_every"]),
+            ema_beta=ema_beta,
         )
         plot_expected_error_over_time(
             data["pg_errors"],
@@ -215,19 +194,6 @@ def plot_experiment_artifact(
         )
         return
 
-    if exp_type == "threshold_track":
-        plot_average_likelihood_over_time(
-            data["likelihood_history"],
-            filename=str(Path(output_dir) / fixed_files["average_likelihood_plot_file"]),
-            track_every=int(plot_cfg["track_every"]),
-        )
-        plot_expected_error_over_time(
-            data["pg_errors"],
-            filename=str(Path(output_dir) / fixed_files["expected_error_plot_file"]),
-            test_every=int(plot_cfg["test_every"]),
-        )
-        return
-
     raise ValueError(f"Unknown experiment type in artifact: {exp_type}")
 
 
@@ -249,6 +215,41 @@ def _select_low_likelihood_track_samples(
         keep = torch.argsort(selected_likelihoods)[:max_samples]
         selected_idx = selected_idx[keep]
     return x[selected_idx], y[selected_idx], likelihoods[selected_idx]
+
+
+def _select_tracking_samples(
+    exp: Any,
+    track_x_pool: torch.Tensor,
+    track_y_pool: torch.Tensor,
+    track_pool_likelihoods: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    tracking_type = str(exp.get("likelihood_tracking_type", "uniform")).lower()
+    if tracking_type == "uniform":
+        _, sorted_idx = torch.sort(track_pool_likelihoods)
+        n = sorted_idx.numel()
+        quantiles = _resolve_quantiles(exp)
+        q_tensor = torch.tensor(quantiles, dtype=torch.float32)
+        positions = [int(q.item() * (n - 1)) for q in q_tensor]
+        track_idx = sorted_idx[positions]
+        return track_x_pool[track_idx], track_y_pool[track_idx]
+    if tracking_type == "threshold":
+        threshold = float(exp.initial_likelihood_threshold)
+        max_samples = exp.get("max_tracked_samples")
+        max_samples = int(max_samples) if max_samples is not None else None
+        track_x, track_y, _ = _select_low_likelihood_track_samples(
+            track_x_pool,
+            track_y_pool,
+            track_pool_likelihoods,
+            threshold=threshold,
+            max_samples=max_samples,
+        )
+        print(
+            "[track-threshold] selected "
+            f"{track_x.shape[0]} / {track_x_pool.shape[0]} samples "
+            f"with initial likelihood < {threshold:.6f}"
+        )
+        return track_x, track_y
+    raise ValueError(f"Unknown likelihood_tracking_type: {tracking_type}")
 
 
 def run_outcome_reward_experiment(
@@ -303,11 +304,11 @@ def run_outcome_reward_experiment(
         data_generator=data_generator,
     )
     track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-    track_x, track_y = _select_track_samples(
-        sup_model,
+    track_x, track_y = _select_tracking_samples(
+        exp,
         track_x_pool,
         track_y_pool,
-        _resolve_quantiles(exp),
+        track_pool_likelihoods,
     )
 
     _, pg_errors, history = policy_gradient_train(
@@ -396,11 +397,11 @@ def run_process_reward_experiment(
         data_generator=data_generator,
     )
     track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-    track_x, track_y = _select_track_samples(
-        sup_model,
+    track_x, track_y = _select_tracking_samples(
+        exp,
         track_x_pool,
         track_y_pool,
-        _resolve_quantiles(exp),
+        track_pool_likelihoods,
     )
 
     _, pg_errors, history = process_reward_train(
@@ -498,133 +499,5 @@ def run_cdf_quantile_experiment(
         "data": {
             "all_steps": all_steps.detach().cpu(),
             "cdfs": [cdf.detach().cpu() for cdf in cdfs],
-        },
-    }
-
-
-def run_threshold_track_experiment(
-    exp: Any,
-    d: int,
-    k: int,
-    seq_length: int,
-    gt: GroundTruth,
-    device: torch.device,
-    test_set_size: int,
-    track_set_size: int,
-    track_source: str = "test",
-    data_generator: InputGenerator | None = None,
-) -> dict[str, Any]:
-    if data_generator is None:
-        raise ValueError("data_generator must be provided")
-
-    test_x, test_y = sample_batch(
-        test_set_size,
-        d=d,
-        k=k,
-        seq_length=seq_length,
-        gt=gt,
-        device=device,
-        data_generator=data_generator,
-    )
-
-    sup_model, _ = supervised_train(
-        d=d,
-        k=k,
-        seq_length=seq_length,
-        gt=gt,
-        device=device,
-        test_x=test_x,
-        test_y=test_y,
-        steps=exp.supervised.steps,
-        batch_size=exp.supervised.batch_size,
-        optimizer_partial=instantiate(exp.supervised.optimizer),
-        test_every=max(1, exp.supervised.test_every),
-        data_generator=data_generator,
-    )
-
-    track_x_pool, track_y_pool = _sample_track_pool(
-        track_source=track_source,
-        test_x=test_x,
-        test_y=test_y,
-        track_set_size=track_set_size,
-        d=d,
-        k=k,
-        seq_length=seq_length,
-        gt=gt,
-        device=device,
-        data_generator=data_generator,
-    )
-    track_pool_likelihoods = compute_sequence_likelihood(sup_model, track_x_pool, track_y_pool)
-
-    threshold = float(exp.initial_likelihood_threshold)
-    max_samples = exp.get("max_tracked_samples")
-    max_samples = int(max_samples) if max_samples is not None else None
-    track_x, track_y, _ = _select_low_likelihood_track_samples(
-        track_x_pool,
-        track_y_pool,
-        track_pool_likelihoods,
-        threshold=threshold,
-        max_samples=max_samples,
-    )
-    print(
-        "[track-threshold] selected "
-        f"{track_x.shape[0]} / {track_x_pool.shape[0]} samples "
-        f"with initial likelihood < {threshold:.6f}"
-    )
-    reward_type = str(exp.reward_type).lower()
-    if reward_type == "outcome":
-        _, pg_errors, history = policy_gradient_train(
-            d=d,
-            k=k,
-            seq_length=seq_length,
-            gt=gt,
-            device=device,
-            test_x=test_x,
-            test_y=test_y,
-            steps=exp.pg.steps,
-            batch_size=exp.pg.batch_size,
-            optimizer_partial=instantiate(exp.pg.optimizer),
-            test_every=exp.pg.test_every,
-            track_samples=(track_x, track_y),
-            track_every=exp.pg.track_every,
-            init_model=sup_model,
-            behavior_policy=instantiate(exp.pg.behavior),
-            data_generator=data_generator,
-        )
-    elif reward_type == "process":
-        _, pg_errors, history = process_reward_train(
-            d=d,
-            k=k,
-            seq_length=seq_length,
-            gt=gt,
-            device=device,
-            test_x=test_x,
-            test_y=test_y,
-            steps=exp.pg.steps,
-            batch_size=exp.pg.batch_size,
-            optimizer_partial=instantiate(exp.pg.optimizer),
-            test_every=exp.pg.test_every,
-            track_samples=(track_x, track_y),
-            track_every=exp.pg.track_every,
-            init_model=sup_model,
-            baseline=bool(exp.pg.get("baseline", True)),
-            behavior_policy=instantiate(exp.pg.behavior),
-            data_generator=data_generator,
-        )
-    else:
-        raise ValueError(f"Unknown reward_type for threshold_track experiment: {exp.reward_type}")
-
-    return {
-        "experiment_type": "threshold_track",
-        "plot": {
-            "base_likelihood_histogram_bins": int(exp.get("base_likelihood_histogram_bins", 80)),
-            "track_every": int(exp.pg.track_every),
-            "test_every": int(exp.pg.test_every),
-            "reward_type": reward_type,
-        },
-        "data": {
-            "track_pool_likelihoods": track_pool_likelihoods.detach().cpu(),
-            "likelihood_history": _to_cpu_history(history),
-            "pg_errors": torch.as_tensor(pg_errors, dtype=torch.float32).detach().cpu(),
         },
     }

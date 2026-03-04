@@ -134,6 +134,7 @@ def plot_likelihood_over_time(
     track_every=10,
     quantiles=None,
     include_colorbar=False,
+    ema_beta=0.0,
 ):
     """Plot how likelihood changes over training steps for tracked samples.
 
@@ -151,7 +152,13 @@ def plot_likelihood_over_time(
     \usepackage{bm}
     """
 
-    likelihood_history = torch.stack(likelihood_history, dim=0).detach().cpu().numpy()  # (num_steps, num_samples)
+    likelihood_history = torch.stack(likelihood_history, dim=0).detach().cpu().numpy()
+    beta = float(ema_beta)
+    if not (0.0 <= beta < 1.0):
+        raise ValueError(f"ema_beta must be in [0, 1), got {ema_beta}")
+    if beta > 0.0 and likelihood_history.shape[0] > 1:
+        for t in range(1, likelihood_history.shape[0]):
+            likelihood_history[t] = beta * likelihood_history[t - 1] + (1.0 - beta) * likelihood_history[t]
     num_steps, num_samples = likelihood_history.shape
 
     # Color by initial likelihood (step 0)
@@ -169,7 +176,7 @@ def plot_likelihood_over_time(
             likelihood_history[:, i],
             label=label,
             color=color,
-            linewidth=1.0,
+            linewidth=2.5,
         )
     ax.tick_params(axis="both", labelsize=20)
     ax.set_xscale("log")
@@ -213,71 +220,48 @@ def plot_average_likelihood_over_time(
     ax.plot(steps.numpy(), mean_likelihood.numpy(), linewidth=2.5)
     ax.set_xscale("log")
     ax.set_xlabel(r"PG Step", fontsize=24)
-    ax.set_ylabel(r"Average Likelihood - $\mathbb{E}[p_{\bm{w}_t}(\bm{y}^*|\bm{x})]$", fontsize=22)
+    ax.set_ylabel(r"Average Likelihood", fontsize=22)
     ax.tick_params(axis="both", labelsize=20)
     ax.grid(True)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
 
 
-def plot_multi_likelihoods_over_time(likelihood_histories, filename="likelihood_vs_iters.pdf", titles=None):
-    """Plot likelihood over time for one or more runs side by side.
-
-    Args:
-        likelihood_histories: list of lists (or a single list) of tensors,
-                              each tensor shape (num_tracked_samples,)
-        labels: optional list of labels for each tracked sample
-        titles: optional list of titles for each subplot
-    """
+def plot_compare_average_likelihood_over_time(
+    outcome_likelihood_history,
+    process_likelihood_history,
+    filename="compare_outcome_process_threshold_likelihood_over_time.pdf",
+    outcome_track_every=10,
+    process_track_every=10,
+):
+    """Plot outcome vs process average tracked likelihood on one axis."""
     import matplotlib.pyplot as plt
     import matplotlib as mpl
 
-    # Use Times New Roman and enable LaTeX rendering
     mpl.rcParams["font.family"] = "Times New Roman"
     mpl.rcParams["text.usetex"] = True
+    plt.rcParams["text.latex.preamble"] = r"""
+    \usepackage{bm}
+    \usepackage{amsmath}
+    \usepackage{amssymb}
+    """
 
-    # Normalize input to list of histories
-    if len(likelihood_histories) > 0 and not isinstance(likelihood_histories[0], (list, tuple)):
-        likelihood_histories = [likelihood_histories]
+    outcome_hist = torch.stack(outcome_likelihood_history, dim=0).detach().cpu()
+    process_hist = torch.stack(process_likelihood_history, dim=0).detach().cpu()
+    outcome_mean = outcome_hist.mean(dim=1)
+    process_mean = process_hist.mean(dim=1)
+    outcome_steps = torch.arange(outcome_hist.shape[0]) * outcome_track_every + 1
+    process_steps = torch.arange(process_hist.shape[0]) * process_track_every + 1
 
-    num_runs = len(likelihood_histories)
-    if num_runs == 0:
-        return
-
-    # Fixed color scale and colormap
-    norm = mpl.colors.Normalize(vmin=0.0, vmax=1.0)
-    cmap = mpl.cm.plasma
-
-    fig, axes = plt.subplots(1, num_runs, figsize=(6 * num_runs, 5), sharey=True, gridspec_kw={"wspace": 0.10})
-    if num_runs == 1:
-        axes = [axes]
-
-    for run_idx, history in enumerate(likelihood_histories):
-        arr = torch.stack(history, dim=0).cpu().numpy()  # (num_steps, num_samples)
-        num_steps, num_samples = arr.shape
-        steps = torch.arange(num_steps).numpy() + 1
-        initial = arr[0]
-        ax = axes[run_idx]
-        for i in range(num_samples):
-            color = cmap(norm(initial[i]))
-            ax.plot(steps, arr[:, i], color=color)
-        if titles is not None and run_idx < len(titles):
-            ax.set_title(titles[run_idx], fontsize=24)
-        else:
-            ax.set_title(r"Likelihood over training", fontsize=24)
-        ax.set_xscale("log")
-        ax.set_xlabel(r"PG Step", fontsize=24)
-        ax.tick_params(axis="both", labelsize=20)
-        ax.grid(True)
-        if run_idx == 0:
-            ax.set_ylabel(r"Likelihood - $p_{\bm{w}_t}\big(\bm{y}^*|\bm{x}\big)$", fontsize=24)
-
-    # Single colorbar next to the rightmost subplot
-    sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=axes, location="right", fraction=0.046, pad=0.04, shrink=0.8)
-    cbar.set_label(r"Initial Likelihood - $q(\bm{y}^*|\bm{x})$", fontsize=22)
-    cbar.ax.tick_params(labelsize=20)
+    fig, ax = plt.subplots(figsize=(7.6, 6))
+    ax.plot(outcome_steps.numpy(), outcome_mean.numpy(), linewidth=2.5, label="Outcome Reward")
+    ax.plot(process_steps.numpy(), process_mean.numpy(), linewidth=2.5, label="Process Reward")
+    ax.set_xscale("log")
+    ax.set_xlabel(r"PG Step", fontsize=24)
+    ax.set_ylabel(r"Average Likelihood - $\mathbb{E}[p_{\bm{w}_t}(\bm{y}^*|\bm{x})]$", fontsize=22)
+    ax.tick_params(axis="both", labelsize=20)
+    ax.grid(True)
+    ax.legend(fontsize=16, frameon=False)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
 

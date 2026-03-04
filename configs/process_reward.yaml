@@ -16,6 +16,9 @@ global:
 
 experiment:
   seed: 0
+  likelihood_tracking_type: uniform  # options: uniform, threshold
+  # initial_likelihood_threshold: 1e-9   # required when likelihood_tracking_type=threshold
+  # max_tracked_samples: 512             # optional cap for threshold mode
   supervised:
     steps: 1000
     batch_size: 256
