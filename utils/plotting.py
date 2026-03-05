@@ -36,9 +36,9 @@ def plot_cdf(p_sorteds, all_steps, filename="cdf.pdf"):
         n = p_sorted.numel()
         y = torch.linspace(0, 1, n)
         ax.plot(p_sorted.numpy(), y.numpy(), color=cmap(norm(steps)), label=steps.item(), linewidth=2.5)
-    ax.set_xlabel(r"$\alpha$", fontsize=24)
+    ax.set_xlabel(r"$\alpha$", fontsize=30)
     ax.set_ylabel(r"Likelihood CDF - $\mathbb{P}[q(\bm{y}^*|\bm{x}) \leq \alpha]$", fontsize=24)
-    ax.tick_params(axis="both", labelsize=20)
+    ax.tick_params(axis="both", labelsize=22)
     ax.grid(True)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
@@ -86,13 +86,12 @@ def plot_alpha_tail(p_sorteds, all_steps, filename="alpha_tail.pdf"):
 
 
 @torch.no_grad()
-def plot_quantile(p_sorteds, all_steps, filename="quantile.pdf", eps=1e-3):
+def plot_quantile(p_sorteds, all_steps, filename="quantile.pdf"):
     """Plot inverse CDF (quantile function) for one or more models.
 
     Args:
         p_sorteds: list of sorted p(y|x) tensors
         all_steps: tensor/list of step labels for coloring (same length as p_sorteds)
-        eps: threshold for drawing vertical line on the largest-step curve
     """
     import matplotlib.pyplot as plt
     import matplotlib as mpl
@@ -116,29 +115,18 @@ def plot_quantile(p_sorteds, all_steps, filename="quantile.pdf", eps=1e-3):
         # Quantile function: map quantile -> value
         ax.plot(y.numpy(), p_sorted.numpy(), color=cmap(norm(steps)), linewidth=2.5)
 
-    # Vertical line at first eps-crossing for the largest step curve
-    if len(p_sorteds) > 0:
-        step_values = [s.item() if torch.is_tensor(s) else float(s) for s in all_steps]
-        max_idx = int(torch.tensor(step_values).argmax().item())
-        p_max = p_sorteds[max_idx].cpu()
-        n = p_max.numel()
-        y = torch.linspace(0, 1, n)
-        above = torch.nonzero(p_max > eps, as_tuple=False)
-        if above.numel() > 0:
-            q_at_eps = y[int(above[0].item())].item()
-            ax.axvline(x=q_at_eps, linestyle="--", color="red", label="The Barrier", linewidth=2.0)
-
-    ax.set_xlabel(r"$\varepsilon$", fontsize=24)
-    ax.set_ylabel(r"Likelihood Quantile - $\mathcal{Q}_q(\varepsilon)$", fontsize=24)
-    ax.tick_params(axis="both", labelsize=20)
+    ax.set_xlabel(r"$\varepsilon$", fontsize=30)
+    ax.set_ylabel(r"Likelihood Quantile - $\mathcal{Q}_q(\varepsilon)$", fontsize=30)
+    ax.set_xlim(0.0, 1.0)
+    ax.set_xticks(torch.linspace(0, 1, 5).tolist())
+    ax.tick_params(axis="both", labelsize=22)
     ax.grid(True)
 
     sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, fraction=0.04, shrink=0.9)
-    cbar.set_label(r"Steps", fontsize=20)
-    cbar.ax.tick_params(labelsize=18)
-    ax.legend(fontsize=18, loc="best", frameon=False)
+    cbar.set_label(r"Steps", fontsize=28)
+    cbar.ax.tick_params(labelsize=22)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
 

@@ -9,8 +9,8 @@ global:
     _target_: utils.data_generator.RademacherInputGenerator
   # data_generator:
   #   _target_: utils.data_generator.MixtureInputGenerator
-  #   num_mix: 8
-  #   sigma: 0.5
+  #   num_mix: 32
+  #   sigma: 0.05
 
 experiment:
   seed: 0

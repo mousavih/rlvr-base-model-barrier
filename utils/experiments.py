@@ -88,9 +88,9 @@ def _fixed_plot_files(experiment_type: str) -> dict[str, str]:
         }
     if experiment_type == "cdf_quantile":
         return {
-            "cdf_plot_file": "cdf_quantile_cdf.pdf",
-            "quantile_plot_file": "cdf_quantile_quantile.pdf",
-            "alpha_tail_plot_file": "cdf_quantile_alpha_tail.pdf",
+            "cdf_plot_file": "cdf.pdf",
+            "quantile_plot_file": "quantile.pdf",
+            "alpha_tail_plot_file": "alpha_tile.pdf",
         }
     raise ValueError(f"Unknown experiment type for fixed plot files: {experiment_type}")
 
