@@ -1,6 +1,21 @@
 import torch
 
 
+def _nice_tick_step(span: float, target_ticks: int = 6) -> int:
+    """Return a human-friendly integer tick step for a given span."""
+    import math
+
+    if span <= 0:
+        return 1
+    raw = span / max(1, target_ticks - 1)
+    magnitude = 10 ** math.floor(math.log10(raw))
+    for m in (1.0, 2.0, 2.5, 5.0, 10.0):
+        step = m * magnitude
+        if step >= raw:
+            return max(1, int(round(step)))
+    return max(1, int(round(10 * magnitude)))
+
+
 def plot_cdf(p_sorteds, all_steps, filename="cdf.pdf"):
     import matplotlib.pyplot as plt
     import matplotlib as mpl
@@ -177,21 +192,19 @@ def plot_likelihood_over_time(
             likelihood_history[:, i],
             label=label,
             color=color,
-            linewidth=2.5,
+            linewidth=1.5,
         )
-    ax.tick_params(axis="both", labelsize=20)
+    ax.tick_params(axis="both", labelsize=24)
     ax.set_xscale("log")
 
-    ax.set_xlabel(r"PG Step", fontsize=24)
-    ax.set_ylabel(r"Likelihood - $p_{\bm{w}_t}\big(\bm{y}^*|\bm{x}\big)$", fontsize=24)
-    if title:
-        ax.set_title(title, fontsize=20)
+    ax.set_xlabel(r"PG Step", fontsize=30)
+    ax.set_ylabel(r"Likelihood - $p_{\bm{w}_t}\big(\bm{y}^*|\bm{x}\big)$", fontsize=30)
     if include_colorbar:
         sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, fraction=0.04, shrink=0.9)
-        cbar.set_label("Initial Likelihood", fontsize=18)
-        cbar.ax.tick_params(labelsize=16)
+        cbar.set_label("Initial Likelihood", fontsize=28)
+        cbar.ax.tick_params(labelsize=20)
     # ax.legend(title="Initial Likelihood", title_fontsize=14, loc='best', fontsize=18)
     ax.grid(True)
     fig.savefig(filename, bbox_inches="tight")
@@ -233,9 +246,10 @@ def plot_average_likelihood_over_time(
 def plot_compare_average_likelihood_over_time(
     outcome_likelihood_history,
     process_likelihood_history,
-    filename="compare_outcome_process_threshold_likelihood_over_time.pdf",
+    filename="compare_outcome_process_off_support.pdf",
     outcome_track_every=10,
     process_track_every=10,
+    show_legend: bool = True,
 ):
     """Plot outcome vs process average tracked likelihood on one axis."""
     import matplotlib.pyplot as plt
@@ -260,29 +274,30 @@ def plot_compare_average_likelihood_over_time(
     ax.plot(outcome_steps.numpy(), outcome_mean.numpy(), linewidth=2.5, label="Outcome Reward")
     ax.plot(process_steps.numpy(), process_mean.numpy(), linewidth=2.5, label="Process Reward")
     ax.set_xscale("log")
-    ax.set_xlabel(r"PG Step", fontsize=24)
-    ax.set_ylabel(r"Avg. Likelihood of Off-Support Samples", fontsize=20)
-    ax.tick_params(axis="both", labelsize=20)
+    ax.set_xlabel(r"PG Step", fontsize=30)
+    ax.set_ylabel(r"Avg. Likelihood of Off-Support Samples", fontsize=24, y=0.46)
+    ax.tick_params(axis="both", labelsize=22)
     ax.grid(True)
-    ax.legend(fontsize=16, frameon=False)
-    fig.savefig(filename, bbox_inches="tight")
+    if show_legend:
+        ax.legend(fontsize=24, frameon=False)
+    fig.tight_layout()
+    fig.savefig(filename)
     plt.close(fig)
 
 
-def plot_expected_error_over_time(
-    pg_errors,
-    filename="expected_error_vs_iters.pdf",
-    test_every=50,
-    title: str | None = None,
+def plot_compare_expected_error_over_time(
+    outcome_pg_errors,
+    process_pg_errors,
+    filename="compare_outcome_process_err.pdf",
+    outcome_test_every=50,
+    process_test_every=50,
+    offset=0,
+    show_legend: bool = True,
 ):
-    """Plot expected error over time from pg_errors (test set averages).
-
-    Args:
-        pg_errors: list of test-set sequence errors (0-1) from policy_gradient_train
-        test_every: evaluation interval used to generate pg_errors
-    """
+    """Plot outcome vs process expected error on one axis."""
     import matplotlib.pyplot as plt
     import matplotlib as mpl
+    from matplotlib.ticker import MaxNLocator
 
     mpl.rcParams["font.family"] = "Times New Roman"
     mpl.rcParams["text.usetex"] = True
@@ -292,16 +307,90 @@ def plot_expected_error_over_time(
     \usepackage{amssymb}
     """
 
-    errors = torch.as_tensor(pg_errors, dtype=torch.float32)
-    steps = torch.arange(len(errors)) * test_every
+    outcome_errors = torch.as_tensor(outcome_pg_errors, dtype=torch.float32).clone()
+    process_errors = torch.as_tensor(process_pg_errors, dtype=torch.float32).clone()
+    outcome_start = max(0, (int(offset) + outcome_test_every - 1) // outcome_test_every)
+    process_start = max(0, (int(offset) + process_test_every - 1) // process_test_every)
+    outcome_steps = torch.arange(outcome_start, outcome_errors.shape[0]) * outcome_test_every
+    process_steps = torch.arange(process_start, process_errors.shape[0]) * process_test_every
+    outcome_errors = outcome_errors[outcome_start:]
+    process_errors = process_errors[process_start:]
+
+    fig, ax = plt.subplots(figsize=(7.6, 6))
+    ax.plot(outcome_steps.numpy(), outcome_errors.numpy(), linewidth=2.5, label="Outcome Reward")
+    ax.plot(process_steps.numpy(), process_errors.numpy(), linewidth=2.5, label="Process Reward")
+    offset = int(offset)
+    ax.set_xlim(left=offset)
+    x_max = max(
+        float(outcome_steps.max().item()) if outcome_steps.numel() > 0 else float(offset),
+        float(process_steps.max().item()) if process_steps.numel() > 0 else float(offset),
+    )
+    tick_step = _nice_tick_step(max(0.0, x_max - float(offset)), target_ticks=6)
+    major_ticks = [offset]
+    first_aligned = ((offset + tick_step - 1) // tick_step) * tick_step
+    major_ticks.extend(range(first_aligned, int(x_max) + 1, tick_step))
+    ax.set_xticks(sorted(set(major_ticks)))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+    ax.set_xlabel(r"PG Step", fontsize=30)
+    ax.set_ylabel(r"Test Error", fontsize=30)
+    ax.tick_params(axis="both", labelsize=24)
+    ax.minorticks_off()
+    ax.grid(True)
+    if show_legend:
+        ax.legend(fontsize=24, frameon=False)
+    fig.tight_layout()
+    fig.savefig(filename)
+    plt.close(fig)
+
+
+def plot_expected_error_over_time(
+    pg_errors,
+    filename="expected_error_vs_iters.pdf",
+    test_every=50,
+    offset=0,
+    title: str | None = None,
+):
+    """Plot expected error over time from pg_errors (test set averages).
+
+    Args:
+        pg_errors: list of test-set sequence errors (0-1) from policy_gradient_train
+        test_every: evaluation interval used to generate pg_errors
+        offset: minimum PG step to include (default: 0)
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+    from matplotlib.ticker import MaxNLocator
+
+    mpl.rcParams["font.family"] = "Times New Roman"
+    mpl.rcParams["text.usetex"] = True
+    plt.rcParams["text.latex.preamble"] = r"""
+    \usepackage{bm}
+    \usepackage{amsmath}
+    \usepackage{amssymb}
+    """
+
+    errors = torch.as_tensor(pg_errors, dtype=torch.float32).clone()
+    start = max(0, (int(offset) + test_every - 1) // test_every)
+    steps = torch.arange(start, len(errors)) * test_every
+    errors = errors[start:]
 
     fig, ax = plt.subplots(figsize=(7.6, 6))
     ax.plot(steps.numpy(), errors.numpy(), linewidth=2.5)
-    ax.set_xlabel(r"PG Step", fontsize=24)
-    ax.set_ylabel(r"Expected Error - $\mathbb{P}[\bm{y} \neq \bm{y}^*]$", fontsize=24)
+    offset = int(offset)
+    ax.set_xlim(left=offset)
+    x_max = float(steps.max().item()) if steps.numel() > 0 else float(offset)
+    tick_step = _nice_tick_step(max(0.0, x_max - float(offset)), target_ticks=6)
+    major_ticks = [offset]
+    first_aligned = ((offset + tick_step - 1) // tick_step) * tick_step
+    major_ticks.extend(range(first_aligned, int(x_max) + 1, tick_step))
+    ax.set_xticks(sorted(set(major_ticks)))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
+    ax.set_xlabel(r"PG Step", fontsize=30)
+    ax.set_ylabel(r"Test Error", fontsize=30)
     if title:
-        ax.set_title(title, fontsize=20)
-    ax.tick_params(axis="both", labelsize=20)
+        ax.set_title(title, fontsize=30)
+    ax.tick_params(axis="both", labelsize=24)
+    ax.minorticks_off()
     ax.grid(True)
     fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)

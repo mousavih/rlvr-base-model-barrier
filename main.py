@@ -10,7 +10,10 @@ from hydra.utils import instantiate
 
 from utils.config import load_config
 from utils.data_generator import GroundTruth, RademacherInputGenerator
-from utils.plotting import plot_compare_average_likelihood_over_time
+from utils.plotting import (
+    plot_compare_average_likelihood_over_time,
+    plot_compare_expected_error_over_time,
+)
 from utils.experiments import (
     find_experiment_artifact,
     load_experiment_artifact,
@@ -71,6 +74,17 @@ def parse_args():
         "--colorbar",
         action="store_true",
         help="Add colorbar to likelihood-over-time plots (outcome_reward/process_reward)",
+    )
+    plot_parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="Minimum PG step to include in expected-error plots (default: 0)",
+    )
+    plot_parser.add_argument(
+        "--no-legend",
+        action="store_true",
+        help="Disable legend in comparison plots",
     )
     return parser.parse_args()
 
@@ -177,12 +191,14 @@ def _plot_command(
     output_dir_override: str | None,
     artifact_file: str | None,
     ema_beta: float = 0.0,
+    offset: int = 0,
     colorbar: bool = False,
+    no_legend: bool = False,
 ):
     experiment_name = _config_stem(experiment_name)
     output_dir = Path(output_dir_override or "outputs/")
 
-    if experiment_name == "compare_outcome_process":
+    if experiment_name == "compare_outcome_process_off_support":
         outcome_path = find_experiment_artifact("outcome_reward_threshold", output_dir=output_dir)
         process_path = find_experiment_artifact("process_reward_threshold", output_dir=output_dir)
         outcome_artifact = load_experiment_artifact(outcome_path)
@@ -190,13 +206,36 @@ def _plot_command(
         plot_compare_average_likelihood_over_time(
             outcome_likelihood_history=outcome_artifact["data"]["likelihood_history"],
             process_likelihood_history=process_artifact["data"]["likelihood_history"],
-            filename=str(output_dir / "compare_outcome_process_threshold_likelihood_over_time.pdf"),
+            filename=str(
+                output_dir / "compare_outcome_process_off_support.pdf"
+            ),
             outcome_track_every=int(outcome_artifact["plot"]["track_every"]),
             process_track_every=int(process_artifact["plot"]["track_every"]),
+            show_legend=not no_legend,
         )
         print(
             "Generated comparison plot: "
-            f"{output_dir / 'compare_outcome_process_threshold_likelihood_over_time.pdf'}"
+            f"{output_dir / 'compare_outcome_process_off_support.pdf'}"
+        )
+        return
+
+    if experiment_name == "compare_outcome_process_err":
+        outcome_path = find_experiment_artifact("outcome_reward_uniform", output_dir=output_dir)
+        process_path = find_experiment_artifact("process_reward_uniform", output_dir=output_dir)
+        outcome_artifact = load_experiment_artifact(outcome_path)
+        process_artifact = load_experiment_artifact(process_path)
+        plot_compare_expected_error_over_time(
+            outcome_pg_errors=outcome_artifact["data"]["pg_errors"],
+            process_pg_errors=process_artifact["data"]["pg_errors"],
+            filename=str(output_dir / "compare_outcome_process_err.pdf"),
+            outcome_test_every=int(outcome_artifact["plot"]["test_every"]),
+            process_test_every=int(process_artifact["plot"]["test_every"]),
+            offset=offset,
+            show_legend=not no_legend,
+        )
+        print(
+            "Generated comparison plot: "
+            f"{output_dir / 'compare_outcome_process_err.pdf'}"
         )
         return
 
@@ -215,6 +254,7 @@ def _plot_command(
         artifact=artifact,
         output_dir=output_dir,
         ema_beta=ema_beta,
+        expected_error_offset=offset,
         include_colorbar=colorbar,
     )
     print(f"Generated plots for '{artifact_path.stem}' from artifact: {artifact_path}")
@@ -235,7 +275,9 @@ def main():
             output_dir_override=args.output_dir,
             artifact_file=args.artifact_file,
             ema_beta=args.ema_beta,
+            offset=args.offset,
             colorbar=args.colorbar,
+            no_legend=args.no_legend,
         )
         return
     raise ValueError(f"Unknown command: {args.command}")

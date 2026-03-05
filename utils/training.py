@@ -26,6 +26,7 @@ def supervised_train(
     test_every: int,
     init_model: Optional[AutoregressivePolicy] = None,
     data_generator: Optional[InputGenerator] = None,
+    step_offset: int = 0,
 ):
     model = AutoregressivePolicy(d=d, k=k, device=device).to(device)
     if init_model is not None:
@@ -53,7 +54,8 @@ def supervised_train(
         if (step + 1) % test_every == 0:
             err = eval_sequence_error(model, test_x, test_y)
             test_errors.append(err)
-            print(f"[sup] step {step + 1} loss={loss.item():.4f} test_err={err:.3f}")
+            global_step = step_offset + step + 1
+            print(f"[sup] step {global_step} loss={loss.item():.4f} test_err={err:.3f}")
 
     return model, test_errors
 
@@ -91,6 +93,7 @@ def policy_gradient_train(
     if track_samples is not None:
         track_x, track_y = track_samples
         likelihood_history.append(compute_sequence_likelihood(model, track_x, track_y).clone())
+    test_errors.append(eval_sequence_error(model, test_x, test_y))
 
     behavior = behavior_policy if behavior_policy is not None else OnPolicyBehavior()
 
@@ -174,6 +177,7 @@ def process_reward_train(
     if track_samples is not None:
         track_x, track_y = track_samples
         likelihood_history.append(compute_sequence_likelihood(model, track_x, track_y).clone())
+    test_errors.append(eval_sequence_error(model, test_x, test_y))
 
     behavior = behavior_policy if behavior_policy is not None else OnPolicyBehavior()
 

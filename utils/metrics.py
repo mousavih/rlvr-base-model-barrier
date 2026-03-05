@@ -10,14 +10,10 @@ from .model import AutoregressivePolicy
 
 @torch.no_grad()
 def eval_sequence_error(model: AutoregressivePolicy, x: torch.Tensor, y_true: torch.Tensor) -> float:
-    batch_size, seq_length = y_true.shape
-    y_samples = torch.empty((batch_size, seq_length), device=x.device, dtype=torch.long)
-    for t in range(seq_length):
-        y_prefix = y_samples[:, :t]
-        y_t = model.sample_step(x, y_prefix)
-        y_samples[:, t] = y_t
-    matches = (y_samples == y_true).all(dim=1)
-    return 1.0 - matches.float().mean().item()
+    # For 0-1 sequence loss under model sampling:
+    # E[1{y != y*} | x] = 1 - p(y* | x). Average over the evaluation set.
+    likelihood = compute_sequence_likelihood(model, x, y_true)
+    return 1.0 - likelihood.mean().item()
 
 
 @torch.no_grad()

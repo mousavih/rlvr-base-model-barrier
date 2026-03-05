@@ -146,6 +146,7 @@ def plot_experiment_artifact(
     artifact: dict[str, Any],
     output_dir: str | Path,
     ema_beta: float = 0.0,
+    expected_error_offset: int = 0,
     include_colorbar: bool = False,
 ):
     _ensure_output_dir(output_dir)
@@ -153,18 +154,12 @@ def plot_experiment_artifact(
     data = artifact["data"]
     plot_cfg = artifact.get("plot", {})
     fixed_files = _fixed_plot_files(exp_type)
-    title_map = {
-        "outcome_reward": "With Outcome Reward",
-        "process_reward": "With Process Reward",
-    }
-    title = title_map.get(exp_type)
 
     if "base_likelihood_histogram_file" in fixed_files:
         plot_likelihood_histogram(
             likelihoods=data["track_pool_likelihoods"],
             filename=str(Path(output_dir) / fixed_files["base_likelihood_histogram_file"]),
             bins=int(plot_cfg.get("base_likelihood_histogram_bins", 80)),
-            title=title,
         )
 
     if exp_type in ("outcome_reward", "process_reward"):
@@ -174,13 +169,12 @@ def plot_experiment_artifact(
             track_every=int(plot_cfg["track_every"]),
             include_colorbar=include_colorbar,
             ema_beta=ema_beta,
-            title=title,
         )
         plot_expected_error_over_time(
             data["pg_errors"],
             filename=str(Path(output_dir) / fixed_files["expected_error_plot_file"]),
             test_every=int(plot_cfg["test_every"]),
-            title=title,
+            offset=expected_error_offset,
         )
         return
 
@@ -476,7 +470,7 @@ def run_cdf_quantile_experiment(
     models = [model]
     all_steps = torch.arange(0, exp.num_models + 1) * exp.partial_steps
 
-    for _ in range(exp.num_models):
+    for i in range(exp.num_models):
         model, _ = supervised_train(
             d=d,
             k=k,
@@ -491,6 +485,7 @@ def run_cdf_quantile_experiment(
             test_every=max(1, exp.partial_steps),
             init_model=model,
             data_generator=data_generator,
+            step_offset=i * exp.partial_steps,
         )
         models.append(model)
 

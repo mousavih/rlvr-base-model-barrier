@@ -17,7 +17,7 @@ global:
 experiment:
   seed: 0
   likelihood_tracking_type: uniform  # options: uniform, threshold
-  initial_likelihood_threshold: 1e-12   # required when likelihood_tracking_type=threshold
+  # initial_likelihood_threshold: 1e-12   # required when likelihood_tracking_type=threshold
   # max_tracked_samples: 512             # optional cap for threshold mode
   supervised:
     steps: 1000
@@ -28,7 +28,7 @@ experiment:
       lr: 0.1
     test_every: 50
   pg:
-    steps: 1000
+    steps: 4000
     batch_size: 1024
     optimizer:
       _target_: torch.optim.Adagrad

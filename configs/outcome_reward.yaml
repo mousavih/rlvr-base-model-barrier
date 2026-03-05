@@ -28,7 +28,7 @@ experiment:
       lr: 0.1
     test_every: 50
   pg:
-    steps: 1000
+    steps: 4000
     batch_size: 1024
     optimizer:
       _target_: torch.optim.Adagrad
@@ -39,5 +39,5 @@ experiment:
     baseline: fasle
     behavior:
       _target_: utils.behavior_policy.OnPolicyBehavior
-  track_initial_quantiles: 32
+  track_initial_quantiles: 16
   base_likelihood_histogram_bins: 120
