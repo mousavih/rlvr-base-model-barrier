@@ -146,18 +146,25 @@ def plot_experiment_artifact(
     artifact: dict[str, Any],
     output_dir: str | Path,
     ema_beta: float = 0.0,
+    include_colorbar: bool = False,
 ):
     _ensure_output_dir(output_dir)
     exp_type = str(artifact["experiment_type"])
     data = artifact["data"]
     plot_cfg = artifact.get("plot", {})
     fixed_files = _fixed_plot_files(exp_type)
+    title_map = {
+        "outcome_reward": "With Outcome Reward",
+        "process_reward": "With Process Reward",
+    }
+    title = title_map.get(exp_type)
 
     if "base_likelihood_histogram_file" in fixed_files:
         plot_likelihood_histogram(
             likelihoods=data["track_pool_likelihoods"],
             filename=str(Path(output_dir) / fixed_files["base_likelihood_histogram_file"]),
             bins=int(plot_cfg.get("base_likelihood_histogram_bins", 80)),
+            title=title,
         )
 
     if exp_type in ("outcome_reward", "process_reward"):
@@ -165,12 +172,15 @@ def plot_experiment_artifact(
             data["likelihood_history"],
             filename=str(Path(output_dir) / fixed_files["likelihood_plot_file"]),
             track_every=int(plot_cfg["track_every"]),
+            include_colorbar=include_colorbar,
             ema_beta=ema_beta,
+            title=title,
         )
         plot_expected_error_over_time(
             data["pg_errors"],
             filename=str(Path(output_dir) / fixed_files["expected_error_plot_file"]),
             test_every=int(plot_cfg["test_every"]),
+            title=title,
         )
         return
 
@@ -326,6 +336,7 @@ def run_outcome_reward_experiment(
         track_samples=(track_x, track_y),
         track_every=exp.pg.track_every,
         init_model=sup_model,
+        baseline=bool(exp.pg.get("baseline", True)),
         behavior_policy=instantiate(exp.pg.behavior),
         data_generator=data_generator,
     )

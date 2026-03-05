@@ -73,6 +73,7 @@ def policy_gradient_train(
     track_samples: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     track_every: Optional[int] = None,
     init_model: Optional[AutoregressivePolicy] = None,
+    baseline: bool = True,
     behavior_policy: Optional[BehaviorPolicy] = None,
     data_generator: Optional[InputGenerator] = None,
 ):
@@ -118,7 +119,7 @@ def policy_gradient_train(
             torch.ones_like(matches, dtype=torch.float32),
             -torch.ones_like(matches, dtype=torch.float32),
         )
-        adv = rewards - rewards.mean()
+        adv = rewards - rewards.mean() if baseline else rewards
         loss = -(adv[:, None] * logps).mean()
 
         opt.zero_grad()

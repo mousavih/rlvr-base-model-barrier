@@ -135,6 +135,7 @@ def plot_likelihood_over_time(
     quantiles=None,
     include_colorbar=False,
     ema_beta=0.0,
+    title: str | None = None,
 ):
     """Plot how likelihood changes over training steps for tracked samples.
 
@@ -183,11 +184,13 @@ def plot_likelihood_over_time(
 
     ax.set_xlabel(r"PG Step", fontsize=24)
     ax.set_ylabel(r"Likelihood - $p_{\bm{w}_t}\big(\bm{y}^*|\bm{x}\big)$", fontsize=24)
+    if title:
+        ax.set_title(title, fontsize=20)
     if include_colorbar:
         sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, fraction=0.04, shrink=0.9)
-        cbar.set_label(r"Initial Likelihood - $q(\bm{y}^*|\bm{x})$", fontsize=18)
+        cbar.set_label("Initial Likelihood", fontsize=18)
         cbar.ax.tick_params(labelsize=16)
     # ax.legend(title="Initial Likelihood", title_fontsize=14, loc='best', fontsize=18)
     ax.grid(True)
@@ -258,7 +261,7 @@ def plot_compare_average_likelihood_over_time(
     ax.plot(process_steps.numpy(), process_mean.numpy(), linewidth=2.5, label="Process Reward")
     ax.set_xscale("log")
     ax.set_xlabel(r"PG Step", fontsize=24)
-    ax.set_ylabel(r"Average Likelihood - $\mathbb{E}[p_{\bm{w}_t}(\bm{y}^*|\bm{x})]$", fontsize=22)
+    ax.set_ylabel(r"Avg. Likelihood of Off-Support Samples", fontsize=20)
     ax.tick_params(axis="both", labelsize=20)
     ax.grid(True)
     ax.legend(fontsize=16, frameon=False)
@@ -266,7 +269,12 @@ def plot_compare_average_likelihood_over_time(
     plt.close(fig)
 
 
-def plot_expected_error_over_time(pg_errors, filename="expected_error_vs_iters.pdf", test_every=50):
+def plot_expected_error_over_time(
+    pg_errors,
+    filename="expected_error_vs_iters.pdf",
+    test_every=50,
+    title: str | None = None,
+):
     """Plot expected error over time from pg_errors (test set averages).
 
     Args:
@@ -291,6 +299,8 @@ def plot_expected_error_over_time(pg_errors, filename="expected_error_vs_iters.p
     ax.plot(steps.numpy(), errors.numpy(), linewidth=2.5)
     ax.set_xlabel(r"PG Step", fontsize=24)
     ax.set_ylabel(r"Expected Error - $\mathbb{P}[\bm{y} \neq \bm{y}^*]$", fontsize=24)
+    if title:
+        ax.set_title(title, fontsize=20)
     ax.tick_params(axis="both", labelsize=20)
     ax.grid(True)
     fig.savefig(filename, bbox_inches="tight")
@@ -301,6 +311,7 @@ def plot_likelihood_histogram(
     likelihoods,
     filename="track_set_likelihood_histogram.pdf",
     bins=80,
+    title: str | None = None,
 ):
     """Plot a histogram of sequence likelihoods."""
     import matplotlib.pyplot as plt
@@ -327,6 +338,8 @@ def plot_likelihood_histogram(
     )
     ax.set_xlabel(r"Likelihood - $q(\bm{y}^*|\bm{x})$", fontsize=24)
     ax.set_ylabel(r"Count", fontsize=24)
+    if title:
+        ax.set_title(title, fontsize=20)
     ax.tick_params(axis="both", labelsize=20)
     ax.grid(True, alpha=0.3)
     fig.savefig(filename, bbox_inches="tight")

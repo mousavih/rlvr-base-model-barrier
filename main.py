@@ -67,6 +67,11 @@ def parse_args():
         default=0.0,
         help="EMA beta for outcome/process likelihood plots in [0, 1) (default: 0.0, no smoothing)",
     )
+    plot_parser.add_argument(
+        "--colorbar",
+        action="store_true",
+        help="Add colorbar to likelihood-over-time plots (outcome_reward/process_reward)",
+    )
     return parser.parse_args()
 
 
@@ -172,6 +177,7 @@ def _plot_command(
     output_dir_override: str | None,
     artifact_file: str | None,
     ema_beta: float = 0.0,
+    colorbar: bool = False,
 ):
     experiment_name = _config_stem(experiment_name)
     output_dir = Path(output_dir_override or "outputs/")
@@ -209,6 +215,7 @@ def _plot_command(
         artifact=artifact,
         output_dir=output_dir,
         ema_beta=ema_beta,
+        include_colorbar=colorbar,
     )
     print(f"Generated plots for '{artifact_path.stem}' from artifact: {artifact_path}")
 
@@ -228,6 +235,7 @@ def main():
             output_dir_override=args.output_dir,
             artifact_file=args.artifact_file,
             ema_beta=args.ema_beta,
+            colorbar=args.colorbar,
         )
         return
     raise ValueError(f"Unknown command: {args.command}")

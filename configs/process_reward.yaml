@@ -5,7 +5,7 @@ global:
   seq_length: 128
   test_set_size: 1024
   track_set_size: 1024
-  track_source: test  # options: test, sample, mixture_centers
+  track_source: mixture_centers  # options: test, sample, mixture_centers
   output_dir: outputs/
   # data_generator:
   #   _target_: utils.data_generator.RademacherInputGenerator
@@ -17,7 +17,7 @@ global:
 experiment:
   seed: 0
   likelihood_tracking_type: uniform  # options: uniform, threshold
-  # initial_likelihood_threshold: 1e-9   # required when likelihood_tracking_type=threshold
+  initial_likelihood_threshold: 1e-12   # required when likelihood_tracking_type=threshold
   # max_tracked_samples: 512             # optional cap for threshold mode
   supervised:
     steps: 1000
@@ -29,16 +29,16 @@ experiment:
     test_every: 50
   pg:
     steps: 1000
-    batch_size: 256
+    batch_size: 1024
     optimizer:
       _target_: torch.optim.Adagrad
       _partial_: true
       lr: 0.1
     test_every: 50
-    track_every: 2
+    track_every: 1
     baseline: false
     # behavior:
-    #   _target_: utils.behavior_policy.TeacherForcingBehavior
+      # _target_: utils.behavior_policy.TeacherForcingBehavior
     # behavior:
     #   _target_: utils.behavior_policy.OnPolicyBehavior
     behavior:
@@ -52,5 +52,5 @@ experiment:
     #   _target_: utils.behavior_policy.EpsilonMixtureBehavior
     #   k: ${global.k}
     #   epsilon: 0.5
-  track_initial_quantiles: 15
+  track_initial_quantiles: 32
   base_likelihood_histogram_bins: 120
