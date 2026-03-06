@@ -24,7 +24,7 @@ from .data_generator import (
 )
 from .metrics import compute_sequence_likelihood, estimate_cdf_p
 from .model import AutoregressivePolicy
-from .training import policy_gradient_train, process_reward_train, supervised_train
+from .training import outcome_reward_pg, process_reward_pg, supervised_train
 
 
 def _ensure_output_dir(output_dir: str | Path):
@@ -315,7 +315,7 @@ def run_outcome_reward_experiment(
         track_pool_likelihoods,
     )
 
-    _, pg_errors, history = policy_gradient_train(
+    _, pg_errors, history = outcome_reward_pg(
         d=d,
         k=k,
         seq_length=seq_length,
@@ -409,7 +409,7 @@ def run_process_reward_experiment(
         track_pool_likelihoods,
     )
 
-    _, pg_errors, history = process_reward_train(
+    _, pg_errors, history = process_reward_pg(
         d=d,
         k=k,
         seq_length=seq_length,

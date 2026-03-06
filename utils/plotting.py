@@ -259,8 +259,8 @@ def plot_compare_average_likelihood_over_time(
     process_steps = torch.arange(process_hist.shape[0]) * process_track_every + 1
 
     fig, ax = plt.subplots(figsize=(7.6, 6))
-    ax.plot(outcome_steps.numpy(), outcome_mean.numpy(), linewidth=2.5, label="Outcome Reward")
-    ax.plot(process_steps.numpy(), process_mean.numpy(), linewidth=2.5, label="Process Reward")
+    ax.plot(outcome_steps.numpy(), outcome_mean.numpy(), linewidth=2.5, label="Outcome Reward Model")
+    ax.plot(process_steps.numpy(), process_mean.numpy(), linewidth=2.5, label="Process Reward Model")
     ax.set_xscale("log")
     ax.set_xlabel(r"PG Step", fontsize=30)
     ax.set_ylabel(r"Avg. Likelihood of Off-Support Samples", fontsize=24, y=0.46)

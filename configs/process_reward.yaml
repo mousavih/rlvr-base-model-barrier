@@ -17,7 +17,7 @@ global:
 experiment:
   seed: 0
   likelihood_tracking_type: uniform  # options: uniform, threshold
-  # initial_likelihood_threshold: 1e-12   # required when likelihood_tracking_type=threshold
+  initial_likelihood_threshold: 1e-12   # required when likelihood_tracking_type=threshold
   # max_tracked_samples: 512             # optional cap for threshold mode
   supervised:
     steps: 1000
@@ -39,15 +39,15 @@ experiment:
     baseline: false
     # behavior:
       # _target_: utils.behavior_policy.TeacherForcingBehavior
-    # behavior:
-    #   _target_: utils.behavior_policy.OnPolicyBehavior
     behavior:
-      _target_: utils.behavior_policy.BoMProcessPolicy
-      m: 10
-      base_policy:
-        _target_: utils.behavior_policy.EpsilonMixtureBehavior
-        k: ${global.k}
-        epsilon: 0.5
+      _target_: utils.behavior_policy.OnPolicyBehavior
+    # behavior:
+    #   _target_: utils.behavior_policy.BoMProcessPolicy
+    #   m: 10
+    #   base_policy:
+    #     _target_: utils.behavior_policy.EpsilonMixtureBehavior
+    #     k: ${global.k}
+    #     epsilon: 0.5
     # behavior:
     #   _target_: utils.behavior_policy.EpsilonMixtureBehavior
     #   k: ${global.k}

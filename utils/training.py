@@ -60,7 +60,7 @@ def supervised_train(
     return model, test_errors
 
 
-def policy_gradient_train(
+def outcome_reward_pg(
     d: int,
     k: int,
     seq_length: int,
@@ -144,7 +144,7 @@ def policy_gradient_train(
     return model, test_errors
 
 
-def process_reward_train(
+def process_reward_pg(
     d: int,
     k: int,
     seq_length: int,
