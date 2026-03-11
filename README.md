@@ -1,5 +1,6 @@
-# Post Training with Policy Gradients: Optimality and the Barrier of the Base Model
+# Post Training with Policy Gradients: Optimality and the Base Model Barrier
 
+This repo provides the implementation of the experiments in the paper ["Post Training with Policy Gradients: Optimality and the Base Model Barrier".](https://arxiv.org/pdf/2603.06957)
 ## Mathematical Setup
 
 Our goal is to train an autoregressive model to predict a response sequence $`\boldsymbol{y}`$ to an input context $`\boldsymbol{x}`$, which is drawn from some distribution on $`\mathbb{R}^d`$. The response is $`\boldsymbol{y}=(y_1,...,y_N)`$ where each $y_i$ is a number between $0$ and $k-1$. There are two setups of ground truth data generation that we consider:
@@ -62,5 +63,6 @@ Generate plots later from saved artifacts:
 python3 main.py plot outcome_reward
 python3 main.py plot process_reward
 python3 main.py plot cdf_quantile
-python3 main.py plot compare_outcome_process
+python3 main.py plot compare_outcome_process_off_support
+python3 main.py plot compare_outcome_process_err
 ```
